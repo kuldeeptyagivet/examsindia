@@ -1,0 +1,19 @@
+name = "examsindia-worker"
+main = "worker.js"
+compatibility_date = "2026-08-10"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "examsindia-db"
+database_id = "fa9ed294-4835-4033-bdfe-6016f9c7cd40"
+
+[[r2_buckets]]
+binding = "QBANK"
+bucket_name = "examsindia-qbank"
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
