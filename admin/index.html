@@ -202,6 +202,9 @@ let state = {
   syllabusLoaded: false,
 
   modal: null, // { mode: 'add'|'edit', form: {...} } or null
+
+  connectedFolder: null, // { book, indexClassDigits, rows: [...] } once _index.json is parsed
+  scanModal: null, // { newRows, changedRows, unchangedCount, removedRows, error } or null
 };
 
 function escapeHtml(str) {
@@ -312,7 +315,11 @@ function renderSyllabusTab() {
         ${classEntries.map((c) => `<option value="${c}" ${state.selectedClass === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
       </select>
       <button id="add-chapter-btn" class="btn btn-primary" ${(!state.selectedExam || !state.selectedClass) ? 'disabled' : ''}>Add Chapter</button>
+      <button id="connect-folder-btn" class="btn btn-secondary" ${(!state.selectedExam || !state.selectedClass) ? 'disabled' : ''}>Connect Folder</button>
+      <button id="scan-compare-btn" class="btn btn-secondary" ${!state.connectedFolder ? 'disabled' : ''}>Scan &amp; Compare</button>
+      <input type="file" id="connect-folder-input" webkitdirectory directory multiple style="display:none">
     </div>
+    ${state.connectedFolder ? `<p style="color: var(--muted); font-size: 13px; margin: -12px 0 20px;">Connected: ${escapeHtml(state.connectedFolder.book)} (${state.connectedFolder.rows.length} chapters in folder)</p>` : ''}
     ${table}
   `;
 }
@@ -362,6 +369,85 @@ function renderModal() {
   `;
 }
 
+function renderScanModal() {
+  if (!state.scanModal) return '';
+  const sm = state.scanModal;
+
+  if (sm.error) {
+    return `
+      <div class="modal-backdrop" id="scan-modal-backdrop">
+        <div class="modal">
+          <h3>Scan &amp; Compare</h3>
+          <div class="field-error">${escapeHtml(sm.error)}</div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" id="scan-modal-cancel-btn">Close</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  const newRows = sm.newRows.map((r) => `
+    <tr>
+      <td>${r.sort_order}</td>
+      <td>${escapeHtml(r.subject)}</td>
+      <td>${r.chapter_number}</td>
+      <td>${escapeHtml(r.chapter_name)}</td>
+    </tr>
+  `).join('');
+
+  const changedRows = sm.changedRows.map((c) => `
+    <tr>
+      <td>${escapeHtml(c.new.subject)}</td>
+      <td>${c.new.chapter_number}</td>
+      <td>${escapeHtml(c.old.chapter_name)} &rarr; ${escapeHtml(c.new.chapter_name)}</td>
+      <td>${c.old.sort_order} &rarr; ${c.new.sort_order}</td>
+    </tr>
+  `).join('');
+
+  const removedRows = sm.removedRows.map((r) => `
+    <tr>
+      <td>${escapeHtml(r.subject)}</td>
+      <td>${r.chapter_number}</td>
+      <td>${escapeHtml(r.chapter_name)}</td>
+      <td><label><input type="checkbox" data-removed-toggle="${r.id}" ${r.deactivate ? 'checked' : ''}> Deactivate</label></td>
+    </tr>
+  `).join('');
+
+  const totalChanges = sm.newRows.length + sm.changedRows.length;
+
+  return `
+    <div class="modal-backdrop" id="scan-modal-backdrop">
+      <div class="modal" style="width: 680px;">
+        <h3>Scan &amp; Compare</h3>
+        <p style="color: var(--muted); font-size: 13px; margin: -8px 0 16px;">
+          ${sm.newRows.length} new, ${sm.changedRows.length} changed, ${sm.unchangedCount} unchanged, ${sm.removedRows.length} in syllabus but not in folder.
+        </p>
+
+        ${sm.newRows.length ? `
+          <h4 style="margin: 16px 0 8px; font-size: 14px;">New (${sm.newRows.length})</h4>
+          <table><thead><tr><th>Order</th><th>Subject</th><th>Ch #</th><th>Chapter</th></tr></thead><tbody>${newRows}</tbody></table>
+        ` : ''}
+
+        ${sm.changedRows.length ? `
+          <h4 style="margin: 16px 0 8px; font-size: 14px;">Changed (${sm.changedRows.length})</h4>
+          <table><thead><tr><th>Subject</th><th>Ch #</th><th>Chapter Name</th><th>Sort Order</th></tr></thead><tbody>${changedRows}</tbody></table>
+        ` : ''}
+
+        ${sm.removedRows.length ? `
+          <h4 style="margin: 16px 0 8px; font-size: 14px;">In syllabus but not in folder (${sm.removedRows.length})</h4>
+          <table><thead><tr><th>Subject</th><th>Ch #</th><th>Chapter</th><th></th></tr></thead><tbody>${removedRows}</tbody></table>
+        ` : ''}
+
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="scan-modal-cancel-btn">Cancel</button>
+          <button class="btn btn-primary" id="scan-modal-apply-btn" ${state.loading ? 'disabled' : ''}>${state.loading ? 'Applying…' : `Apply Changes (${totalChanges})`}</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderTabContent() {
   if (state.activeTab === 'syllabus') return renderSyllabusTab();
   return '';
@@ -395,6 +481,7 @@ function render() {
       <div id="main">${renderTabContent()}</div>
     </div>
     ${renderModal()}
+    ${renderScanModal()}
   `;
   attachShellHandlers();
 }
@@ -418,11 +505,15 @@ function attachShellHandlers() {
     state.selectedClass = '';
     state.syllabus = [];
     state.syllabusLoaded = false;
+    state.connectedFolder = null;
+    state.scanModal = null;
     render();
   });
 
   document.getElementById('class-select')?.addEventListener('change', (e) => {
     state.selectedClass = e.target.value;
+    state.connectedFolder = null;
+    state.scanModal = null;
     loadSyllabus();
   });
 
@@ -468,7 +559,14 @@ function attachShellHandlers() {
     btn.addEventListener('click', () => moveRow(btn.dataset.moveDown, 1));
   });
 
+  document.getElementById('connect-folder-btn')?.addEventListener('click', () => {
+    document.getElementById('connect-folder-input')?.click();
+  });
+  document.getElementById('connect-folder-input')?.addEventListener('change', handleFolderSelected);
+  document.getElementById('scan-compare-btn')?.addEventListener('click', handleScanAndCompare);
+
   attachModalHandlers();
+  attachScanModalHandlers();
 }
 
 function attachModalHandlers() {
@@ -514,6 +612,183 @@ function attachModalHandlers() {
     render();
   });
   document.getElementById('modal-save-btn')?.addEventListener('click', saveModal);
+}
+
+function attachScanModalHandlers() {
+  if (!state.scanModal) return;
+  document.getElementById('scan-modal-cancel-btn')?.addEventListener('click', () => {
+    state.scanModal = null;
+    render();
+  });
+  document.getElementById('scan-modal-backdrop')?.addEventListener('click', (e) => {
+    if (e.target.id === 'scan-modal-backdrop') {
+      state.scanModal = null;
+      render();
+    }
+  });
+  document.querySelectorAll('[data-removed-toggle]').forEach((cb) => {
+    cb.addEventListener('change', (e) => {
+      const id = e.target.dataset.removedToggle;
+      const row = state.scanModal.removedRows.find((r) => r.id === id);
+      if (row) row.deactivate = e.target.checked;
+    });
+  });
+  document.getElementById('scan-modal-apply-btn')?.addEventListener('click', applyScanChanges);
+}
+
+async function handleFolderSelected(e) {
+  const files = Array.from(e.target.files || []);
+  const indexFile = files.find((f) => f.name === '_index.json');
+  if (!indexFile) {
+    state.connectedFolder = null;
+    state.message = { type: 'error', text: 'No _index.json found in the selected folder.' };
+    return render();
+  }
+
+  let data;
+  try {
+    const text = await indexFile.text();
+    data = JSON.parse(text);
+  } catch {
+    state.connectedFolder = null;
+    state.message = { type: 'error', text: '_index.json could not be parsed as JSON.' };
+    return render();
+  }
+
+  if (!Array.isArray(data.files) || data.files.length === 0) {
+    state.connectedFolder = null;
+    state.message = { type: 'error', text: '_index.json has no "files" entries.' };
+    return render();
+  }
+
+  const rows = data.files.map((f, i) => ({
+    subject: typeof f.section_name === 'string' ? f.section_name.trim() : '',
+    chapter_number: f.chapter,
+    chapter_name: typeof f.chapter_name === 'string' ? f.chapter_name.trim() : '',
+    sort_order: i,
+  }));
+
+  const invalid = rows.find(
+    (r) => !r.subject || !r.chapter_name || !Number.isInteger(r.chapter_number) || r.chapter_number < 1
+  );
+  if (invalid) {
+    state.connectedFolder = null;
+    state.message = { type: 'error', text: '_index.json contains an entry missing subject/chapter/chapter_name.' };
+    return render();
+  }
+
+  state.connectedFolder = {
+    book: data.book || '_index.json',
+    indexClassDigits: typeof data.class === 'string' ? data.class.replace(/\D/g, '') : '',
+    rows,
+  };
+  state.message = null;
+  render();
+}
+
+function computeSyllabusDiff(currentRows, folderRows) {
+  const currentMap = new Map(currentRows.map((r) => [`${r.subject}||${r.chapter_number}`, r]));
+  const folderKeys = new Set(folderRows.map((r) => `${r.subject}||${r.chapter_number}`));
+
+  const newRows = [];
+  const changedRows = [];
+  let unchangedCount = 0;
+
+  for (const fr of folderRows) {
+    const key = `${fr.subject}||${fr.chapter_number}`;
+    const cur = currentMap.get(key);
+    if (!cur) {
+      newRows.push(fr);
+    } else if (cur.chapter_name !== fr.chapter_name || cur.sort_order !== fr.sort_order) {
+      changedRows.push({ old: cur, new: fr });
+    } else {
+      unchangedCount++;
+    }
+  }
+
+  const removedRows = currentRows
+    .filter((r) => r.is_active && !folderKeys.has(`${r.subject}||${r.chapter_number}`))
+    .map((r) => ({ ...r, deactivate: false }));
+
+  return { newRows, changedRows, unchangedCount, removedRows };
+}
+
+async function handleScanAndCompare() {
+  if (!state.connectedFolder) return;
+  state.loading = true;
+  render();
+
+  let currentRows;
+  try {
+    currentRows = await fetchSyllabusRows(state.selectedExam, state.selectedClass);
+  } catch {
+    state.loading = false;
+    state.scanModal = { error: 'Could not load the current syllabus to compare against. Check your connection.' };
+    return render();
+  }
+
+  const selectedClassDigits = state.selectedClass.replace(/\D/g, '');
+  const folderClassDigits = state.connectedFolder.indexClassDigits;
+  if (folderClassDigits && selectedClassDigits && folderClassDigits !== selectedClassDigits) {
+    state.loading = false;
+    state.scanModal = {
+      error: `_index.json says class ${folderClassDigits}, but ${state.selectedClass} is selected. Reconnect the right folder or change the class selector.`,
+    };
+    return render();
+  }
+
+  const diff = computeSyllabusDiff(currentRows, state.connectedFolder.rows);
+  state.loading = false;
+  state.scanModal = { ...diff, error: null };
+  render();
+}
+
+async function applyScanChanges() {
+  const sm = state.scanModal;
+  if (!sm || sm.error) return;
+
+  state.loading = true;
+  render();
+
+  const chapters = [...sm.newRows, ...sm.changedRows.map((c) => c.new)].map((r) => ({
+    subject: r.subject,
+    chapter_number: r.chapter_number,
+    chapter_name: r.chapter_name,
+    sort_order: r.sort_order,
+  }));
+  const toDeactivate = sm.removedRows.filter((r) => r.deactivate);
+
+  try {
+    if (chapters.length) {
+      const res = await fetch(`${CONFIG.workerUrl}/admin/syllabus/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ exam_code: state.selectedExam, class_entry: state.selectedClass, chapters }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        state.loading = false;
+        state.scanModal.error = body.error ? `Apply failed: ${body.error}` : 'Apply failed.';
+        return render();
+      }
+    }
+    if (toDeactivate.length) {
+      await Promise.all(toDeactivate.map((r) => putSyllabusRow(r, { is_active: 0 }, false)));
+    }
+  } catch {
+    state.loading = false;
+    state.scanModal.error = 'Apply failed. Check your connection.';
+    return render();
+  }
+
+  state.loading = false;
+  state.scanModal = null;
+  state.connectedFolder = null;
+  state.message = {
+    type: 'success',
+    text: `Applied: ${chapters.length} added/updated, ${toDeactivate.length} deactivated.`,
+  };
+  await loadSyllabus();
 }
 
 async function renderGoogleButton() {
@@ -584,14 +859,19 @@ async function loadMeta() {
   }
 }
 
+async function fetchSyllabusRows(examCode, classEntry) {
+  const params = new URLSearchParams({ exam_code: examCode, class_entry: classEntry });
+  const res = await fetch(`${CONFIG.workerUrl}/admin/syllabus?${params}`, { headers: await authHeaders() });
+  if (!res.ok) throw new Error('fetch_failed');
+  const body = await res.json();
+  return body.syllabus;
+}
+
 async function loadSyllabus() {
   state.syllabusLoaded = false;
   render();
   try {
-    const params = new URLSearchParams({ exam_code: state.selectedExam, class_entry: state.selectedClass });
-    const res = await fetch(`${CONFIG.workerUrl}/admin/syllabus?${params}`, { headers: await authHeaders() });
-    const body = await res.json();
-    state.syllabus = res.ok ? body.syllabus : [];
+    state.syllabus = await fetchSyllabusRows(state.selectedExam, state.selectedClass);
   } catch {
     state.syllabus = [];
   }
@@ -710,6 +990,7 @@ async function handleSignOut() {
     session: null, authChecked: true, adminInfo: null, notAuthorized: false,
     activeTab: 'syllabus', message: null, loading: false,
     meta: null, selectedExam: '', selectedClass: '', syllabus: [], syllabusLoaded: false, modal: null,
+    connectedFolder: null, scanModal: null,
   };
   render();
 }

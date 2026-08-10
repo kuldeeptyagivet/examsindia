@@ -242,3 +242,9 @@ CREATE INDEX idx_messages_thread_id ON messages(thread_id);
 
 CREATE INDEX idx_syllabus_exam_code ON syllabus(exam_code);
 CREATE INDEX idx_syllabus_class_entry ON syllabus(class_entry);
+
+-- Lets the admin console's question-bank import be idempotent: re-running
+-- an import upserts by (exam_code, class_entry, subject, chapter_number)
+-- instead of creating duplicate rows.
+CREATE UNIQUE INDEX idx_syllabus_unique_chapter
+  ON syllabus(exam_code, class_entry, subject, chapter_number);

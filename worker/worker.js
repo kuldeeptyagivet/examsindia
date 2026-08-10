@@ -428,6 +428,82 @@ async function handlePutSyllabus(request, env, id) {
   return { status: 200, body: { syllabus: rowToSyllabusResponse(row) } };
 }
 
+const MAX_IMPORT_CHAPTERS = 500;
+
+// Bulk upsert from a parsed question-bank _index.json. Idempotent via the
+// (exam_code, class_entry, subject, chapter_number) unique index — re-running
+// an import updates chapter_name/sort_order in place instead of duplicating.
+async function handlePostSyllabusImport(request, env) {
+  const admin = await requireAdmin(request, env);
+  if (!admin) {
+    return { status: 403, body: { error: 'not_authorized' } };
+  }
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return { status: 400, body: { error: 'invalid_json' } };
+  }
+  if (!(await isValidExamCode(env, body.exam_code))) {
+    return { status: 400, body: { error: 'invalid_exam_code' } };
+  }
+  const validClassEntries = CLASS_ENTRIES_BY_EXAM[body.exam_code] || [];
+  if (!validClassEntries.includes(body.class_entry)) {
+    return { status: 400, body: { error: 'invalid_class_entry' } };
+  }
+  if (!Array.isArray(body.chapters) || body.chapters.length === 0 || body.chapters.length > MAX_IMPORT_CHAPTERS) {
+    return { status: 400, body: { error: 'invalid_chapters' } };
+  }
+
+  const statements = [];
+  for (let i = 0; i < body.chapters.length; i++) {
+    const chapter = body.chapters[i];
+    const subject = typeof chapter.subject === 'string' ? chapter.subject.trim() : '';
+    const chapterName = typeof chapter.chapter_name === 'string' ? chapter.chapter_name.trim() : '';
+    if (!subject || subject.length > 100) {
+      return { status: 400, body: { error: 'invalid_subject', index: i } };
+    }
+    if (!Number.isInteger(chapter.chapter_number) || chapter.chapter_number < 1) {
+      return { status: 400, body: { error: 'invalid_chapter_number', index: i } };
+    }
+    if (!chapterName || chapterName.length > 200) {
+      return { status: 400, body: { error: 'invalid_chapter_name', index: i } };
+    }
+    if (!Number.isInteger(chapter.sort_order) || chapter.sort_order < 0) {
+      return { status: 400, body: { error: 'invalid_sort_order', index: i } };
+    }
+
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO syllabus
+           (id, exam_code, class_entry, subject, chapter_number, chapter_name, topic_headings_json, is_active, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, '[]', 1, ?)
+         ON CONFLICT(exam_code, class_entry, subject, chapter_number) DO UPDATE SET
+           chapter_name = excluded.chapter_name,
+           sort_order = excluded.sort_order`
+      ).bind(
+        crypto.randomUUID(),
+        body.exam_code,
+        body.class_entry,
+        subject,
+        chapter.chapter_number,
+        chapterName,
+        chapter.sort_order
+      )
+    );
+  }
+
+  await env.DB.batch(statements);
+
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM syllabus WHERE exam_code = ? AND class_entry = ? ORDER BY sort_order'
+  )
+    .bind(body.exam_code, body.class_entry)
+    .all();
+
+  return { status: 200, body: { imported: statements.length, syllabus: results.map(rowToSyllabusResponse) } };
+}
+
 export default {
   async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
@@ -468,6 +544,11 @@ export default {
 
     if (url.pathname === '/admin/syllabus' && request.method === 'POST') {
       const { status, body } = await handlePostSyllabus(request, env);
+      return new Response(JSON.stringify(body), { status, headers });
+    }
+
+    if (url.pathname === '/admin/syllabus/import' && request.method === 'POST') {
+      const { status, body } = await handlePostSyllabusImport(request, env);
       return new Response(JSON.stringify(body), { status, headers });
     }
 
