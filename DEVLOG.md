@@ -99,3 +99,20 @@ report), and confirmed reload correctly skips back to the account view
 instead of re-showing the setup form. Schedule-row generation not
 included - no syllabus/scheduled_tests content exists yet to schedule
 against.
+
+Researched two competitor sites (sainikguru.com, garudsainikacademy.com
+blog) before building landing page content. Added a static bilingual
+hero, feature grid, how-it-works, and FAQ above the sign-in box, plus
+meta description/canonical/OG tags and EducationalOrganization JSON-LD.
+Deliberately didn't copy competitors' unverifiable stats or faculty
+credential claims - led with what's actually true instead (free, full
+syllabus, personalised schedule, progress tracking, bilingual). Landing
+content is real static HTML (toggled via CSS class, not JS render) so
+it's crawlable and doesn't flash empty on load; hidden once signed in.
+
+Caught and fixed a UX gap right after: the language toggle only lived
+inside the app's own header, below all the new landing content, so a
+visitor had no way to switch language without scrolling past the whole
+page first. Moved it to a sticky top bar spanning the full page and
+rewired it to fire once in init() instead of attachHandlers(), since it
+no longer gets torn down and rebuilt on every render().

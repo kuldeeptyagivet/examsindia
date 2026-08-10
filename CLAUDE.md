@@ -279,6 +279,30 @@ credentials that do need protecting: `wrangler secret put`, read only via
   enrollment summary instead of the setup form. Schedule-row generation
   (`student_schedules`) is intentionally not wired up yet — no
   `syllabus`/`scheduled_tests` content exists in D1 to schedule against.
+- Landing page content added above the sign-in box: static bilingual
+  (hi/en) hero, 4-tile "why ExamsIndia" feature grid, 3-step
+  how-it-works, and FAQ. Toggled via the existing `lang-hi` CSS class
+  mechanic rather than JS re-render, so it's real content in the
+  initial HTML (crawlable, no flash-of-empty-content) — the `<html>`
+  tag now carries `class="lang-hi"` from the start so pre-JS/no-JS
+  visitors correctly see Hindi by default instead of a brief/permanent
+  wrong-language flash. Hidden entirely once a user is signed in (not
+  relevant to a returning user's own account view). Content is honest
+  about what's actually built — free, full syllabus, personalised
+  schedule, progress tracking, bilingual — deliberately not copying
+  competitor patterns researched for this (sainikguru.com,
+  garudsainikacademy.com) that use unverifiable stats ("5000+
+  students," "95% success rate") or faculty credentials we don't have.
+  `<head>` gained a real meta description, canonical URL, Open Graph
+  tags, and `EducationalOrganization` JSON-LD. The single `#lang-select`
+  moved out of the app's own header into a sticky top bar spanning both
+  the landing and app sections — it used to live only inside the app
+  box below all the marketing content, so a visitor had no way to
+  switch language without scrolling past the whole landing page first.
+  Wired once in `init()` rather than in `attachHandlers()`, since the
+  element now persists across every `render()` call instead of being
+  torn down and rebuilt with it — leaving it in `attachHandlers()`
+  would have stacked a duplicate `change` listener on every re-render.
 - `aissee.examsindia.org` live via Cloudflare Pages: project
   `examsindia-aissee` deploys automatically via GitHub Actions +
   Wrangler (`.github/workflows/deploy-pages.yml`, triggers on any push
