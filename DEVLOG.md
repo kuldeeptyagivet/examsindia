@@ -60,3 +60,22 @@ stays scoped to each user's own exam_code/class_entry in D1, never
 inferred from which subdomain they signed in through. Logged as an
 explicit requirement for the Worker's authorization checks, not yet
 built.
+
+Fixing consent-screen branding wasn't enough — the permission-grant
+screen (separate from the account picker) still showed
+knkmcpbyrgrbgpriztnj.supabase.co, since that's where signInWithOAuth's
+redirect_uri actually lives. Switched to Google Identity Services (GSI)
+client-side + signInWithIdToken instead, which never redirects through
+Supabase at all — free, no Pro plan needed, but real frontend code:
+replaced the custom button with Google's own rendered button, added
+proper SHA-256 nonce handling, and made sure the GSI script tag loads
+(defer, not async) before our module script runs. Also fixed a
+"google.accounts.id.initialize() called multiple times" warning caused
+by acting on Supabase's redundant INITIAL_SESSION auth event.
+
+Full chain verified end-to-end by a real user (a Google account
+distinct from the admin's, not something done on their behalf): signed
+in via Google, then Verify Worker Auth returned HTTP 200 with the
+correct email, Supabase user id, and exam_code. This was the last
+unverified piece of the Worker/auth foundation built earlier in the
+day.

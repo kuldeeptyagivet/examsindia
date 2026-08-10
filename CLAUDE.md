@@ -215,38 +215,45 @@ credentials that do need protecting: `wrangler secret put`, read only via
   Supabase JWTs against the public JWKS (ES256) using native Web Crypto
   only, no dependencies; enforces the `ALLOWED_ORIGINS` CORS allowlist;
   derives `exam_code` from Origin; `/whoami` test route exercises the
-  auth path. Verified via curl: no/disallowed Origin → 403; missing or
-  garbage Bearer token on `/whoami` → 401; allowed origins resolve to
-  the right `exam_code`. No D1/R2 reads/writes yet.
+  auth path. Verified via curl for all negative paths, and now via a
+  real signed-in user for the success path too (see below). No D1/R2
+  reads/writes yet.
 - `aissee/index.html` page shell built: header with brand + language
   selector, `t()`/`LANG` translation system (en/hi, default hi), Sign
-  In/Sign Up tabs, Supabase Auth wiring (email+password via
-  `supabase-js` from esm.sh, Google OAuth button), client-side
-  validation, post-auth account card with Sign Out and a "Verify Worker
-  Auth" button that calls the Worker's `/whoami`. Verified at 375px
-  mobile width: language switch re-renders without reload and correctly
-  loads/unloads Noto Sans; tab switching; email/password validation
-  blocks bad input before any Supabase call; touch targets ≥44px, input
-  font 16px, `touch-action: manipulation` all confirmed via computed
-  styles. Not yet verified: real sign-up/sign-in (needs the user's own
-  credentials, not something to submit on their behalf).
-- Google OAuth fully configured and verified end-to-end. Uses a
+  In/Sign Up tabs, Supabase Auth wiring (email+password, Google
+  Sign-In), client-side validation, post-auth account card with Sign
+  Out and a "Verify Worker Auth" button that calls the Worker's
+  `/whoami`. Verified at 375px mobile width: language switch re-renders
+  without reload and correctly loads/unloads Noto Sans; tab switching;
+  email/password validation blocks bad input before any Supabase call;
+  touch targets ≥44px, input font 16px, `touch-action: manipulation`
+  all confirmed via computed styles. Email/password sign-up/sign-in
+  itself remains unverified with a real account (Google Sign-In was
+  used for the full end-to-end test instead — see below); the code
+  path is identical in shape to the verified Google one (same
+  `state.session` handling, same `/whoami` call).
+- Google Sign-In fully working end-to-end, real user verified. Uses a
   dedicated Google Cloud project (`examsindia`, app name "Exams India"
   — domain-wide, not "AISSEE", matching the shared-identity decision
   below) rather than an existing project that had unrelated "Claude
-  Drive" branding on its shared OAuth consent screen — reusing it would
-  have shown every student that wrong app name at sign-in with no way
-  to fix it without risking an unrelated integration. Consent screen
+  Drive" branding on its shared OAuth consent screen. Consent screen
   published to production (no Google verification required: single
-  domain, no logo, only email/profile/openid scopes). Client:
-  "Exams India Web", JS origin `https://aissee.examsindia.org`, redirect
-  URI is Supabase's fixed callback
-  (`https://knkmcpbyrgrbgpriztnj.supabase.co/auth/v1/callback`). Verified
-  by triggering the real redirect from the live site and confirming the
-  Google consent screen shows "to continue to Exams India" — not
-  completed further, since finishing sign-in requires real user
-  consent. Client secret is regenerate-only after creation (Google
-  never shows it twice); exactly one active secret exists after
+  domain, no logo, only email/profile/openid scopes). Implementation
+  uses Google Identity Services (GSI) client-side + `signInWithIdToken`
+  rather than Supabase's `signInWithOAuth` redirect flow — the redirect
+  flow routes through Supabase's own callback domain
+  (`knkmcpbyrgrbgpriztnj.supabase.co`), which Google surfaces to users
+  on the permission-grant screen; the ID-token flow keeps everything on
+  our own origin instead, at no cost (no Supabase Pro/custom-domain
+  needed). Includes proper nonce handling (SHA-256 hashed nonce to GSI,
+  raw nonce to Supabase) since nonce checks aren't skipped. Fully
+  completed by a real user (a Google account distinct from the admin's)
+  — signed in successfully, then called `/whoami` and got back
+  `HTTP 200` with the correct email, Supabase user id, and
+  `exam_code: "aissee"`. This is the full chain verified end-to-end:
+  Google Sign-In → Supabase-issued JWT → Worker's JWKS verification →
+  correct response. Client secret is regenerate-only after creation
+  (Google never shows it twice); exactly one active secret exists after
   cleanup.
 - `aissee.examsindia.org` live via Cloudflare Pages: project
   `examsindia-aissee` deploys automatically via GitHub Actions +
@@ -420,6 +427,40 @@ credentials that do need protecting: `wrangler secret put`, read only via
   reduced the new client down to one active secret (an extra one was
   generated when the original creation dialog's one-time secret display
   was missed due to a tab-focus issue during setup).
+2026-08-10 — Switched Google Sign-In from Supabase's `signInWithOAuth`
+  redirect flow to Google Identity Services (GSI) client-side +
+  `signInWithIdToken`, after fixing the consent-screen branding still
+  left the underlying issue: the redirect flow's `redirect_uri` lives
+  on Supabase's domain, so Google's permission-grant screen (a
+  different screen from the account-picker one, styled differently)
+  showed `knkmcpbyrgrbgpriztnj.supabase.co` regardless of app branding.
+  GSI's client-side flow never redirects through Supabase at all — the
+  ID token is obtained directly in-page via Google's own SDK, so Google
+  shows our own origin throughout. Free (no Supabase Pro/custom-domain
+  needed), but real code, not a config change: replaced the custom
+  "Continue with Google" button with Google's own rendered button
+  (`google.accounts.id.renderButton`, locale-matched to the active
+  language) since `prompt()`-triggered One Tap is less reliable across
+  browsers post-FedCM. Implemented proper nonce verification (SHA-256
+  hash to GSI's `initialize()`, raw value to Supabase) rather than
+  using Supabase's `Skip nonce checks` escape hatch. The GSI script tag
+  uses `defer` without `async` specifically so it's guaranteed to load
+  before our module script runs — `async` would race the two and
+  intermittently leave `window.google` undefined when the button first
+  tries to render.
+2026-08-10 — Fixed a `google.accounts.id.initialize()` "called multiple
+  times" warning by ignoring the `INITIAL_SESSION` event from
+  `supabase.auth.onAuthStateChange()` — that event fires once
+  immediately on subscribe with the session `getSession()` already
+  provided, so acting on it caused a redundant second render (and
+  second GSI init) on every page load.
+2026-08-10 — Full auth chain verified end-to-end with a real user (not
+  the admin's own account): Google Sign-In → Supabase-issued JWT →
+  Worker's JWKS verification (`/whoami`) → `HTTP 200` with correct
+  email, Supabase user id, and `exam_code`. This was the last
+  unverified piece of the Worker/auth skeleton built earlier. Verified
+  by the user themselves signing in — account creation and consent are
+  not actions performed on a user's behalf.
 
 ---
 
