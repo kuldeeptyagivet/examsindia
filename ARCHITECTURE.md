@@ -71,6 +71,8 @@ Every student appears in both pools exactly once, so cohort size (`cohort_size`)
 
 At registration, a student selects exam, class entry level, and a target completion date. There are no fixed module tiers — every student gets the complete syllabus (all chapter tests, all previous year papers, all mock tests) for their exam/class. The target date is the only scheduling parameter.
 
+This registration step is also the **one-time "complete your setup" screen** — it collects exam, class entry, target date, and basic profile fields (mobile number, city, state) together in a single flow after first sign-in, rather than as a separate profile step. State is a hardcoded dropdown (India's 28 states + 8 union territories — small and stable, no external dataset needed); city is free text (a comprehensive India city/town dataset would be large and still have gaps for smaller towns). Mobile number is format-validated client-side only — real SMS OTP verification is deliberately deferred. Sending business SMS in India requires TRAI DLT (Distributed Ledger Technology) registration as a Principal Entity regardless of provider; unregistered messages get silently blocked by carriers rather than just costing money, so this isn't a problem free trial credits or a self-hosted phone-as-gateway solves. Real verification is a future paid-tier item via a proper DLT-registered SMS gateway (e.g. MSG91), added once there's a monetization budget to justify it — same deferral pattern as Razorpay.
+
 **Initial generation:**
 1. Enumerate the complete content set for the student's `exam_code` + `class_entry` from `scheduled_tests`.
 2. Order it: chapter tests first (in syllabus order), then previous year papers, then mock tests last, ending in the final weeks before the target date.

@@ -461,6 +461,24 @@ credentials that do need protecting: `wrangler secret put`, read only via
   unverified piece of the Worker/auth skeleton built earlier. Verified
   by the user themselves signing in — account creation and consent are
   not actions performed on a user's behalf.
+2026-08-10 — Mobile number, city, and state will be collected as part
+  of the same one-time "complete your setup" screen as
+  exam/class/target-date registration, not a separate profile step —
+  avoids a student clicking through two setup flows and avoids
+  reshaping a standalone profile screen once enrollment fields join it
+  anyway. State is a hardcoded dropdown (28 states + 8 UTs); city is
+  free text, not a dropdown (a full India city dataset is large and
+  still misses smaller towns). Real SMS OTP verification of the mobile
+  number is deferred — format validation only for now. Reasoning: no
+  free production-grade option exists (SMS has a real per-message
+  telecom cost), and more importantly, TRAI requires DLT registration
+  for any business SMS sender in India regardless of provider or
+  method — unregistered messages get blocked by carriers, not just
+  billed, so neither free trial credits nor a self-hosted
+  phone-as-SMS-gateway approach actually solves this. Real
+  verification via a DLT-registered gateway (e.g. MSG91) is a future
+  paid-tier item, same deferral pattern as Razorpay. See
+  ARCHITECTURE.md §5.
 
 ---
 
