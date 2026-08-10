@@ -217,16 +217,31 @@ credentials that do need protecting: `wrangler secret put`, read only via
   derives `exam_code` from Origin; `/whoami` test route exercises the
   auth path. Verified via curl: no/disallowed Origin → 403; missing or
   garbage Bearer token on `/whoami` → 401; allowed origins resolve to
-  the right `exam_code`. Not yet verified: a genuinely valid Supabase JWT
-  on the success path — needs a real signed-up test account, deferred
-  until the frontend sign-up flow exists. No D1/R2 reads/writes yet.
+  the right `exam_code`. No D1/R2 reads/writes yet.
+- `aissee/index.html` page shell built: header with brand + language
+  selector, `t()`/`LANG` translation system (en/hi, default hi), Sign
+  In/Sign Up tabs, Supabase Auth wiring (email+password via
+  `supabase-js` from esm.sh, Google OAuth button), client-side
+  validation, post-auth account card with Sign Out and a "Verify Worker
+  Auth" button that calls the Worker's `/whoami`. Verified at 375px
+  mobile width: language switch re-renders without reload and correctly
+  loads/unloads Noto Sans; tab switching; email/password validation
+  blocks bad input before any Supabase call; touch targets ≥44px, input
+  font 16px, `touch-action: manipulation` all confirmed via computed
+  styles. Not yet verified: real sign-up/sign-in (needs the user's own
+  credentials, not something to submit on their behalf), Google OAuth
+  end-to-end (provider not yet configured in Supabase), and the
+  `/whoami` success path — the last one is blocked by design when
+  testing from localhost, since the Worker's CORS allowlist only
+  recognises the real exam subdomains, not local dev origins.
 
 **Not yet built:**
-- Everything else (frontend, D1/R2 reads and writes in the Worker,
-  R2 question bank content, admin panel, CBT attempt screen, scheduling
-  engine, normalisation cron,
-  scheduled D1-to-R2 backup export cron route, custom domain / subdomain
-  wiring for aissee.examsindia.org)
+- Everything else (D1/R2 reads and writes in the Worker, R2 question
+  bank content, enrollment/schedule flow, admin panel, CBT attempt
+  screen, scheduling engine, normalisation cron, scheduled D1-to-R2
+  backup export cron route, custom domain / Cloudflare Pages deployment
+  for aissee.examsindia.org, Google OAuth provider configuration in
+  Supabase)
 
 ---
 
@@ -328,6 +343,17 @@ credentials that do need protecting: `wrangler secret put`, read only via
   or malformed token); the valid-token success path is intentionally
   untested until a real signed-up account exists, since creating a test
   account isn't something to do outside the actual sign-up flow.
+2026-08-10 — Frontend built via `supabase-js` loaded from esm.sh as an
+  ES module import, no bundler, keeping the single-file/no-build-step
+  rule intact while still using the official Supabase client rather than
+  hand-rolling REST calls. Auth screen validates email format and
+  minimum password length client-side before ever calling Supabase, to
+  avoid burning API calls on obviously invalid input. Design tokens
+  (--ink/--paper/--cream/--accent/--gold/etc.) follow the same CSS
+  variable naming convention as CompetitionHub for consistency across
+  the founder's apps, but with an independently chosen navy/gold palette
+  fitting a Sainik School (military academy) theme — no shared values,
+  since no specific palette was mandated for this project.
 
 ---
 

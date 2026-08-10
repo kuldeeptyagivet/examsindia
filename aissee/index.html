@@ -1,5 +1,468 @@
-<!--
-  Placeholder for AISSEE single-file frontend (aissee.examsindia.org).
-  This file will eventually contain all HTML, CSS, and JS for the exam subdomain.
-  No application code yet — structure only.
--->
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>AISSEE — ExamsIndia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="font-latin" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ink: #14213d;
+    --paper: #ffffff;
+    --cream: #f7f5f0;
+    --accent: #14213d;
+    --accent2: #b45309;
+    --gold: #c99a2e;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --success: #16a34a;
+    --warn: #dc2626;
+    --font-display: 'DM Serif Display', serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+  html.lang-hi {
+    --font-display: 'Noto Sans', 'DM Serif Display', serif;
+    --font-body: 'Noto Sans', 'DM Sans', sans-serif;
+  }
+  * { box-sizing: border-box; touch-action: manipulation; }
+  body {
+    margin: 0;
+    background: var(--cream);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-text-size-adjust: 100%;
+  }
+  .screen {
+    max-width: 420px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--paper);
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 20px 20px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand h1 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    margin: 0 0 2px;
+    color: var(--ink);
+  }
+  .brand p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  #lang-select {
+    height: 44px;
+    min-width: 44px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--paper);
+    font-family: var(--font-body);
+    font-size: 15px;
+    padding: 0 10px;
+  }
+  main { flex: 1; padding: 24px 20px 40px; }
+  .tabs {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .tab-btn {
+    flex: 1;
+    height: 44px;
+    border: none;
+    background: var(--paper);
+    color: var(--muted);
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .tab-btn.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  form { display: flex; flex-direction: column; gap: 14px; }
+  label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 4px;
+    display: block;
+  }
+  input[type="email"], input[type="password"] {
+    width: 100%;
+    height: 48px;
+    font-size: 16px;
+    font-family: var(--font-body);
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .btn {
+    height: 48px;
+    border-radius: 8px;
+    border: none;
+    font-family: var(--font-body);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--ink); color: var(--paper); }
+  .btn-primary:disabled { background: var(--muted); cursor: not-allowed; }
+  .btn-google {
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary {
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--border);
+  }
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+    margin: 4px 0;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .msg {
+    font-size: 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 14px;
+  }
+  .msg-error { background: #fef2f2; color: var(--warn); }
+  .msg-success { background: #f0fdf4; color: var(--success); }
+  .account-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .account-card p { margin: 0 0 4px; font-size: 14px; }
+  .account-card .email { font-weight: 700; font-family: var(--font-mono); font-size: 14px; word-break: break-all; }
+  .whoami-result {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--cream);
+    border-radius: 8px;
+    padding: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-top: 10px;
+  }
+  .field-error { color: var(--warn); font-size: 12px; margin-top: -8px; }
+</style>
+</head>
+<body>
+<div id="app" class="screen"></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const CONFIG = {
+  supabaseUrl: 'https://knkmcpbyrgrbgpriztnj.supabase.co',
+  supabaseAnonKey: 'sb_publishable_Rv2ZG9LMWw9p-YrwwFuuUQ_ecmCLTGW',
+  workerUrl: 'https://examsindia-worker.kuldeeptyagi-vet.workers.dev',
+  examCode: 'aissee',
+};
+
+const supabase = createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
+
+const LANG = {
+  en: {
+    app_title: 'AISSEE',
+    tagline: 'Sainik School Entrance Exam Prep',
+    tab_signup: 'Sign Up',
+    tab_signin: 'Sign In',
+    email_label: 'Email',
+    password_label: 'Password',
+    signup_button: 'Create Account',
+    signin_button: 'Sign In',
+    google_button: 'Continue with Google',
+    or_divider: 'or',
+    signout_button: 'Sign Out',
+    welcome_message: 'Signed in as',
+    check_worker_button: 'Verify Worker Auth',
+    checking: 'Checking…',
+    error_email_required: 'Enter a valid email',
+    error_password_length: 'Password must be at least 6 characters',
+    error_generic: 'Something went wrong. Please try again.',
+    signup_success: 'Account created. Check your email to confirm, then sign in.',
+  },
+  hi: {
+    app_title: 'AISSEE',
+    tagline: 'सैनिक स्कूल प्रवेश परीक्षा की तैयारी',
+    tab_signup: 'खाता बनाएं',
+    tab_signin: 'साइन इन करें',
+    email_label: 'ईमेल',
+    password_label: 'पासवर्ड',
+    signup_button: 'खाता बनाएं',
+    signin_button: 'साइन इन करें',
+    google_button: 'Google से जारी रखें',
+    or_divider: 'या',
+    signout_button: 'साइन आउट करें',
+    welcome_message: 'इस रूप में साइन इन किया गया',
+    check_worker_button: 'Worker प्रमाणीकरण जांचें',
+    checking: 'जांच हो रही है…',
+    error_email_required: 'एक मान्य ईमेल दर्ज करें',
+    error_password_length: 'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए',
+    error_generic: 'कुछ गलत हो गया। कृपया पुनः प्रयास करें।',
+    signup_success: 'खाता बन गया। पुष्टि के लिए अपना ईमेल जांचें, फिर साइन इन करें।',
+  },
+};
+
+let state = {
+  lang: 'hi',
+  activeTab: 'signin',
+  session: null,
+  message: null,
+  loading: false,
+  whoamiResult: null,
+};
+
+function t(key) {
+  return LANG[state.lang][key] || key;
+}
+
+function setLang(lang) {
+  state.lang = lang;
+  document.documentElement.lang = lang;
+  document.documentElement.classList.toggle('lang-hi', lang === 'hi');
+  syncNotoSans(lang);
+  render();
+}
+
+function syncNotoSans(lang) {
+  const existing = document.getElementById('font-noto');
+  if (lang === 'hi' && !existing) {
+    const link = document.createElement('link');
+    link.id = 'font-noto';
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap';
+    document.head.appendChild(link);
+  } else if (lang !== 'hi' && existing) {
+    existing.remove();
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderHeader() {
+  return `
+    <header>
+      <div class="brand">
+        <h1>${t('app_title')}</h1>
+        <p>${t('tagline')}</p>
+      </div>
+      <select id="lang-select">
+        <option value="hi" ${state.lang === 'hi' ? 'selected' : ''}>हिंदी</option>
+        <option value="en" ${state.lang === 'en' ? 'selected' : ''}>English</option>
+      </select>
+    </header>
+  `;
+}
+
+function renderMessage() {
+  if (!state.message) return '';
+  const cls = state.message.type === 'error' ? 'msg-error' : 'msg-success';
+  return `<div class="msg ${cls}">${escapeHtml(state.message.text)}</div>`;
+}
+
+function renderAuthForm() {
+  const isSignup = state.activeTab === 'signup';
+  return `
+    <div class="tabs">
+      <button class="tab-btn ${state.activeTab === 'signin' ? 'active' : ''}" data-tab="signin">${t('tab_signin')}</button>
+      <button class="tab-btn ${state.activeTab === 'signup' ? 'active' : ''}" data-tab="signup">${t('tab_signup')}</button>
+    </div>
+    ${renderMessage()}
+    <form id="auth-form">
+      <div>
+        <label for="email">${t('email_label')}</label>
+        <input type="email" id="email" name="email" required autocomplete="email">
+      </div>
+      <div>
+        <label for="password">${t('password_label')}</label>
+        <input type="password" id="password" name="password" required autocomplete="${isSignup ? 'new-password' : 'current-password'}" minlength="6">
+      </div>
+      <button type="submit" class="btn btn-primary" ${state.loading ? 'disabled' : ''}>
+        ${state.loading ? t('checking') : (isSignup ? t('signup_button') : t('signin_button'))}
+      </button>
+    </form>
+    <div class="divider">${t('or_divider')}</div>
+    <button id="google-btn" class="btn btn-google" ${state.loading ? 'disabled' : ''}>${t('google_button')}</button>
+  `;
+}
+
+function renderWhoamiResult() {
+  if (!state.whoamiResult) return '';
+  return `<div class="whoami-result">${escapeHtml(state.whoamiResult)}</div>`;
+}
+
+function renderAccount() {
+  const email = state.session?.user?.email || '';
+  return `
+    ${renderMessage()}
+    <div class="account-card">
+      <p>${t('welcome_message')}</p>
+      <p class="email">${escapeHtml(email)}</p>
+    </div>
+    <button id="whoami-btn" class="btn btn-secondary" ${state.loading ? 'disabled' : ''}>
+      ${state.loading ? t('checking') : t('check_worker_button')}
+    </button>
+    ${renderWhoamiResult()}
+    <button id="signout-btn" class="btn btn-primary" style="margin-top: 16px;">${t('signout_button')}</button>
+  `;
+}
+
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = renderHeader() + '<main>' + (state.session ? renderAccount() : renderAuthForm()) + '</main>';
+  attachHandlers();
+}
+
+function attachHandlers() {
+  document.getElementById('lang-select')?.addEventListener('change', (e) => setLang(e.target.value));
+
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.activeTab = btn.dataset.tab;
+      state.message = null;
+      render();
+    });
+  });
+
+  document.getElementById('auth-form')?.addEventListener('submit', handleAuthSubmit);
+  document.getElementById('google-btn')?.addEventListener('click', handleGoogleSignIn);
+  document.getElementById('signout-btn')?.addEventListener('click', handleSignOut);
+  document.getElementById('whoami-btn')?.addEventListener('click', handleWhoami);
+}
+
+async function handleAuthSubmit(e) {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  if (!email.includes('@')) {
+    state.message = { type: 'error', text: t('error_email_required') };
+    return render();
+  }
+  if (password.length < 6) {
+    state.message = { type: 'error', text: t('error_password_length') };
+    return render();
+  }
+
+  state.loading = true;
+  state.message = null;
+  render();
+
+  const isSignup = state.activeTab === 'signup';
+  const { data, error } = isSignup
+    ? await supabase.auth.signUp({ email, password })
+    : await supabase.auth.signInWithPassword({ email, password });
+
+  state.loading = false;
+
+  if (error) {
+    state.message = { type: 'error', text: error.message || t('error_generic') };
+    return render();
+  }
+
+  if (isSignup && !data.session) {
+    state.message = { type: 'success', text: t('signup_success') };
+    return render();
+  }
+
+  state.session = data.session;
+  render();
+}
+
+async function handleGoogleSignIn() {
+  state.loading = true;
+  render();
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin },
+  });
+  if (error) {
+    state.loading = false;
+    state.message = { type: 'error', text: error.message || t('error_generic') };
+    render();
+  }
+}
+
+async function handleSignOut() {
+  await supabase.auth.signOut();
+  state.session = null;
+  state.whoamiResult = null;
+  state.activeTab = 'signin';
+  render();
+}
+
+async function handleWhoami() {
+  state.loading = true;
+  state.whoamiResult = null;
+  render();
+
+  try {
+    const token = state.session?.access_token;
+    const res = await fetch(`${CONFIG.workerUrl}/whoami`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json();
+    state.whoamiResult = `HTTP ${res.status}\n${JSON.stringify(body, null, 2)}`;
+  } catch (err) {
+    state.whoamiResult = `Request failed: ${err.message}`;
+  }
+
+  state.loading = false;
+  render();
+}
+
+async function init() {
+  document.documentElement.classList.toggle('lang-hi', state.lang === 'hi');
+  syncNotoSans(state.lang);
+
+  const { data } = await supabase.auth.getSession();
+  state.session = data.session;
+  render();
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    state.session = session;
+    render();
+  });
+}
+
+init();
+</script>
+</body>
+</html>

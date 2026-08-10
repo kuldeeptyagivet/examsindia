@@ -18,3 +18,14 @@ CORS allowlist enforcement, exam_code derived from Origin, /whoami test
 route. Verified negative paths via curl (bad origin, missing/invalid
 token); valid-token path deferred until a real signed-up test account
 exists.
+
+aissee/index.html page shell built: header, language selector, t()/LANG
+translation system (en/hi, default hi), Sign In/Sign Up tabs, Supabase
+Auth wiring (email+password, Google OAuth button), post-auth account
+card with a Worker /whoami verification button. Tested locally at 375px:
+language switching, Noto Sans conditional load/unload, tab switching,
+client-side validation, and mobile touch-target/font-size constraints
+all confirmed. Real sign-up, Google OAuth, and the /whoami success path
+remain unverified — the first two need a human to enter real
+credentials, the third is blocked by CORS until deployed to the real
+subdomain.
