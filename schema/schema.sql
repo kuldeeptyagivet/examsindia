@@ -188,6 +188,10 @@ CREATE TABLE platform_config (
   FOREIGN KEY (exam_code) REFERENCES exams(code)
 );
 
+-- Seed the AISSEE exam row (platform_config.exam_code has a FK to exams.code)
+INSERT INTO exams (code, name, academic_year_start_month, min_schedule_days) VALUES
+  ('aissee', 'AISSEE', 2, 30);
+
 -- Seed defaults for AISSEE
 INSERT INTO platform_config (exam_code, config_key, config_value) VALUES
   ('aissee', 'min_schedule_days', '30'),
