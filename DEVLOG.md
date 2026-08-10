@@ -29,3 +29,13 @@ all confirmed. Real sign-up, Google OAuth, and the /whoami success path
 remain unverified — the first two need a human to enter real
 credentials, the third is blocked by CORS until deployed to the real
 subdomain.
+
+aissee.examsindia.org deployed via Cloudflare Pages (project
+examsindia-aissee), auto-deploying through a new GitHub Actions +
+Wrangler workflow rather than Cloudflare's GitHub App integration, to
+avoid a new OAuth grant. Custom domain activated almost immediately
+(examsindia.org already lives on Cloudflare). Confirmed live: page
+loads at the real domain, and the Worker's CORS allowlist now accepts
+requests from it — /whoami correctly returns 401 for an invalid token
+instead of being CORS-blocked as it was from localhost. Still open: a
+genuinely valid JWT success path, which needs a real sign-up.

@@ -229,18 +229,28 @@ credentials that do need protecting: `wrangler secret put`, read only via
   blocks bad input before any Supabase call; touch targets ≥44px, input
   font 16px, `touch-action: manipulation` all confirmed via computed
   styles. Not yet verified: real sign-up/sign-in (needs the user's own
-  credentials, not something to submit on their behalf), Google OAuth
-  end-to-end (provider not yet configured in Supabase), and the
-  `/whoami` success path — the last one is blocked by design when
-  testing from localhost, since the Worker's CORS allowlist only
-  recognises the real exam subdomains, not local dev origins.
+  credentials, not something to submit on their behalf) and Google
+  OAuth end-to-end (provider not yet configured in Supabase).
+- `aissee.examsindia.org` live via Cloudflare Pages: project
+  `examsindia-aissee` deploys automatically via GitHub Actions +
+  Wrangler (`.github/workflows/deploy-pages.yml`, triggers on any push
+  touching `aissee/**`; a separate idempotent "ensure project exists"
+  step runs first since `wrangler pages deploy` doesn't auto-create the
+  project). Custom domain added and active (DNS auto-configured since
+  `examsindia.org` is already a Cloudflare zone — activation was
+  near-instant, not the worst-case 48h Cloudflare warns about). Verified
+  live: page loads correctly at the real domain, and the Worker's CORS
+  allowlist now accepts requests from it — confirmed `/whoami` returns a
+  proper `401` for an invalid token instead of being CORS-blocked like
+  it was from localhost. Deployment used no Cloudflare-GitHub OAuth/App
+  connection — deliberately kept on the same Wrangler-via-CI pattern as
+  the Worker to avoid granting a new third-party permission.
 
 **Not yet built:**
 - Everything else (D1/R2 reads and writes in the Worker, R2 question
   bank content, enrollment/schedule flow, admin panel, CBT attempt
   screen, scheduling engine, normalisation cron, scheduled D1-to-R2
-  backup export cron route, custom domain / Cloudflare Pages deployment
-  for aissee.examsindia.org, Google OAuth provider configuration in
+  backup export cron route, Google OAuth provider configuration in
   Supabase)
 
 ---
@@ -354,6 +364,17 @@ credentials that do need protecting: `wrangler secret put`, read only via
   the founder's apps, but with an independently chosen navy/gold palette
   fitting a Sainik School (military academy) theme — no shared values,
   since no specific palette was mandated for this project.
+2026-08-10 — `aissee.examsindia.org` deployed via Cloudflare Pages using
+  a second GitHub Actions + Wrangler workflow (deploy-pages.yml),
+  reusing the existing CLOUDFLARE_API_TOKEN/ACCOUNT_ID secrets, rather
+  than connecting Cloudflare's GitHub App/Git integration to the repo.
+  Chosen specifically to avoid granting a new OAuth/App permission when
+  an equivalent no-OAuth path already existed via the Worker's deploy
+  pattern. `wrangler pages deploy` does not auto-create the Pages
+  project on first run (confirmed by a failed first deploy: "Project
+  not found"); fixed with a separate `pages project create` step marked
+  `continue-on-error: true` so it's a no-op on every subsequent deploy
+  once the project exists.
 
 ---
 
