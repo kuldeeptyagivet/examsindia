@@ -103,7 +103,8 @@
     margin-bottom: 4px;
     display: block;
   }
-  input[type="email"], input[type="password"] {
+  input[type="email"], input[type="password"], input[type="tel"],
+  input[type="date"], input[type="text"], select.form-select {
     width: 100%;
     height: 48px;
     font-size: 16px;
@@ -114,7 +115,7 @@
     background: var(--paper);
     color: var(--ink);
   }
-  input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  input:focus, select:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
   .btn {
     height: 48px;
     border-radius: 8px;
@@ -173,6 +174,8 @@
     margin-top: 10px;
   }
   .field-error { color: var(--warn); font-size: 12px; margin-top: -8px; }
+  .field-warning { color: var(--accent2); font-size: 12px; margin-top: -8px; }
+  .setup-intro { font-size: 14px; color: var(--muted); margin: 0 0 16px; }
 </style>
 </head>
 <body>
@@ -190,6 +193,18 @@ const CONFIG = {
 };
 
 const supabase = createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
+
+const MIN_SCHEDULE_DAYS = 30;
+
+const INDIA_STATES = [
+  'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam',
+  'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir',
+  'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh',
+  'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha',
+  'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana',
+  'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+];
 
 const LANG = {
   en: {
@@ -210,6 +225,26 @@ const LANG = {
     error_password_length: 'Password must be at least 6 characters',
     error_generic: 'Something went wrong. Please try again.',
     signup_success: 'Account created. Check your email to confirm, then sign in.',
+    setup_intro: "Let's set up your profile to get started.",
+    setup_class_label: 'Class Entry',
+    setup_class6: 'Class 6',
+    setup_class9: 'Class 9',
+    setup_target_date_label: 'Target Completion Date',
+    setup_intensive_warning: 'This is a short window — your schedule will be intensive.',
+    setup_mobile_label: 'Mobile Number',
+    setup_mobile_placeholder: '10-digit mobile number',
+    setup_city_label: 'City',
+    setup_state_label: 'State',
+    setup_state_placeholder: 'Select your state',
+    setup_submit_button: 'Complete Setup',
+    error_invalid_mobile: 'Enter a valid 10-digit mobile number',
+    error_invalid_city: 'Enter your city',
+    error_invalid_state: 'Select your state',
+    error_target_date: 'Select a valid future date',
+    enrolled_class_label: 'Class',
+    enrolled_target_date_label: 'Target Date',
+    enrolled_mobile_label: 'Mobile',
+    enrolled_city_state_label: 'Location',
   },
   hi: {
     app_title: 'AISSEE',
@@ -229,6 +264,26 @@ const LANG = {
     error_password_length: 'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए',
     error_generic: 'कुछ गलत हो गया। कृपया पुनः प्रयास करें।',
     signup_success: 'खाता बन गया। पुष्टि के लिए अपना ईमेल जांचें, फिर साइन इन करें।',
+    setup_intro: 'शुरू करने के लिए अपनी प्रोफ़ाइल सेट करें।',
+    setup_class_label: 'कक्षा प्रवेश',
+    setup_class6: 'कक्षा 6',
+    setup_class9: 'कक्षा 9',
+    setup_target_date_label: 'लक्ष्य पूर्णता तिथि',
+    setup_intensive_warning: 'यह एक छोटी अवधि है — आपका शेड्यूल गहन होगा।',
+    setup_mobile_label: 'मोबाइल नंबर',
+    setup_mobile_placeholder: '10 अंकों का मोबाइल नंबर',
+    setup_city_label: 'शहर',
+    setup_state_label: 'राज्य',
+    setup_state_placeholder: 'अपना राज्य चुनें',
+    setup_submit_button: 'सेटअप पूरा करें',
+    error_invalid_mobile: 'एक मान्य 10 अंकों का मोबाइल नंबर दर्ज करें',
+    error_invalid_city: 'अपना शहर दर्ज करें',
+    error_invalid_state: 'अपना राज्य चुनें',
+    error_target_date: 'एक मान्य भविष्य की तिथि चुनें',
+    enrolled_class_label: 'कक्षा',
+    enrolled_target_date_label: 'लक्ष्य तिथि',
+    enrolled_mobile_label: 'मोबाइल',
+    enrolled_city_state_label: 'स्थान',
   },
 };
 
@@ -239,7 +294,20 @@ let state = {
   message: null,
   loading: false,
   whoamiResult: null,
+  enrollmentChecked: false,
+  enrollment: null,
+  setupForm: { classEntry: 'class6', targetDate: '', mobileNumber: '', city: '', state: '' },
 };
+
+function todayISODate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDaysISO(isoDate, days) {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 function t(key) {
   return LANG[state.lang][key] || key;
@@ -324,13 +392,67 @@ function renderWhoamiResult() {
   return `<div class="whoami-result">${escapeHtml(state.whoamiResult)}</div>`;
 }
 
+function renderLoading() {
+  return `<p>${t('checking')}</p>`;
+}
+
+function renderSetupForm() {
+  const f = state.setupForm;
+  const minDate = addDaysISO(todayISODate(), 1);
+  const recommendedMinDate = addDaysISO(todayISODate(), MIN_SCHEDULE_DAYS);
+  const isIntensive = f.targetDate && f.targetDate < recommendedMinDate;
+  return `
+    ${renderMessage()}
+    <p class="setup-intro">${t('setup_intro')}</p>
+    <form id="setup-form">
+      <div>
+        <label>${t('setup_class_label')}</label>
+        <div class="tabs">
+          <button type="button" class="tab-btn ${f.classEntry === 'class6' ? 'active' : ''}" data-class-entry="class6">${t('setup_class6')}</button>
+          <button type="button" class="tab-btn ${f.classEntry === 'class9' ? 'active' : ''}" data-class-entry="class9">${t('setup_class9')}</button>
+        </div>
+      </div>
+      <div>
+        <label for="target-date">${t('setup_target_date_label')}</label>
+        <input type="date" id="target-date" name="target-date" min="${minDate}" value="${f.targetDate}" required>
+        ${isIntensive ? `<p class="field-warning">${t('setup_intensive_warning')}</p>` : ''}
+      </div>
+      <div>
+        <label for="mobile">${t('setup_mobile_label')}</label>
+        <input type="tel" id="mobile" name="mobile" inputmode="numeric" maxlength="10" placeholder="${t('setup_mobile_placeholder')}" value="${escapeHtml(f.mobileNumber)}" required>
+      </div>
+      <div>
+        <label for="city">${t('setup_city_label')}</label>
+        <input type="text" id="city" name="city" value="${escapeHtml(f.city)}" required>
+      </div>
+      <div>
+        <label for="state">${t('setup_state_label')}</label>
+        <select id="state" name="state" class="form-select" required>
+          <option value="">${t('setup_state_placeholder')}</option>
+          ${INDIA_STATES.map((s) => `<option value="${s}" ${f.state === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" ${state.loading ? 'disabled' : ''}>
+        ${state.loading ? t('checking') : t('setup_submit_button')}
+      </button>
+    </form>
+  `;
+}
+
 function renderAccount() {
   const email = state.session?.user?.email || '';
+  const en = state.enrollment;
   return `
     ${renderMessage()}
     <div class="account-card">
       <p>${t('welcome_message')}</p>
       <p class="email">${escapeHtml(email)}</p>
+    </div>
+    <div class="account-card">
+      <p>${t('enrolled_class_label')}: ${en.class_entry === 'class6' ? t('setup_class6') : t('setup_class9')}</p>
+      <p>${t('enrolled_target_date_label')}: ${escapeHtml(en.target_date)}</p>
+      <p>${t('enrolled_mobile_label')}: ${escapeHtml(en.mobile_number)}</p>
+      <p>${t('enrolled_city_state_label')}: ${escapeHtml(en.city)}, ${escapeHtml(en.state)}</p>
     </div>
     <button id="whoami-btn" class="btn btn-secondary" ${state.loading ? 'disabled' : ''}>
       ${state.loading ? t('checking') : t('check_worker_button')}
@@ -342,7 +464,17 @@ function renderAccount() {
 
 function render() {
   const app = document.getElementById('app');
-  app.innerHTML = renderHeader() + '<main>' + (state.session ? renderAccount() : renderAuthForm()) + '</main>';
+  let body;
+  if (!state.session) {
+    body = renderAuthForm();
+  } else if (!state.enrollmentChecked) {
+    body = renderLoading();
+  } else if (!state.enrollment) {
+    body = renderSetupForm();
+  } else {
+    body = renderAccount();
+  }
+  app.innerHTML = renderHeader() + '<main>' + body + '</main>';
   attachHandlers();
 }
 
@@ -360,6 +492,16 @@ function attachHandlers() {
   document.getElementById('auth-form')?.addEventListener('submit', handleAuthSubmit);
   document.getElementById('signout-btn')?.addEventListener('click', handleSignOut);
   document.getElementById('whoami-btn')?.addEventListener('click', handleWhoami);
+
+  document.getElementById('setup-form')?.addEventListener('submit', handleSetupSubmit);
+  document.getElementById('setup-form')?.addEventListener('input', handleSetupFieldInput);
+  document.querySelectorAll('[data-class-entry]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.setupForm.classEntry = btn.dataset.classEntry;
+      render();
+    });
+  });
+
   renderGoogleButton();
 }
 
@@ -399,7 +541,7 @@ async function handleAuthSubmit(e) {
   }
 
   state.session = data.session;
-  render();
+  checkEnrollment();
 }
 
 let googleRawNonce = null;
@@ -456,6 +598,99 @@ async function handleGoogleCredentialResponse(response) {
   }
 
   state.session = data.session;
+  checkEnrollment();
+}
+
+async function checkEnrollment() {
+  state.loading = true;
+  render();
+
+  try {
+    const res = await fetch(`${CONFIG.workerUrl}/enrollment`, {
+      headers: { Authorization: `Bearer ${state.session?.access_token}` },
+    });
+    const body = await res.json();
+    state.enrollment = body.enrolled ? body.enrollment : null;
+  } catch {
+    state.enrollment = null;
+  }
+
+  state.enrollmentChecked = true;
+  state.loading = false;
+  render();
+}
+
+function handleSetupFieldInput(e) {
+  const f = state.setupForm;
+  if (e.target.id === 'target-date') {
+    f.targetDate = e.target.value;
+    return render();
+  }
+  if (e.target.id === 'mobile') {
+    f.mobileNumber = e.target.value;
+  } else if (e.target.id === 'city') {
+    f.city = e.target.value;
+  } else if (e.target.id === 'state') {
+    f.state = e.target.value;
+  }
+}
+
+async function handleSetupSubmit(e) {
+  e.preventDefault();
+  const f = state.setupForm;
+
+  if (!f.targetDate || f.targetDate <= todayISODate()) {
+    state.message = { type: 'error', text: t('error_target_date') };
+    return render();
+  }
+  if (!/^[6-9]\d{9}$/.test(f.mobileNumber)) {
+    state.message = { type: 'error', text: t('error_invalid_mobile') };
+    return render();
+  }
+  if (!f.city.trim()) {
+    state.message = { type: 'error', text: t('error_invalid_city') };
+    return render();
+  }
+  if (!INDIA_STATES.includes(f.state)) {
+    state.message = { type: 'error', text: t('error_invalid_state') };
+    return render();
+  }
+
+  state.loading = true;
+  state.message = null;
+  render();
+
+  try {
+    const res = await fetch(`${CONFIG.workerUrl}/enrollment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${state.session?.access_token}`,
+      },
+      body: JSON.stringify({
+        class_entry: f.classEntry,
+        target_date: f.targetDate,
+        mobile_number: f.mobileNumber,
+        city: f.city.trim(),
+        state: f.state,
+      }),
+    });
+    const body = await res.json();
+
+    if (!res.ok) {
+      state.loading = false;
+      state.message = { type: 'error', text: t('error_generic') };
+      return render();
+    }
+
+    state.enrollment = body.enrollment;
+  } catch {
+    state.loading = false;
+    state.message = { type: 'error', text: t('error_generic') };
+    return render();
+  }
+
+  state.loading = false;
   render();
 }
 
@@ -463,6 +698,8 @@ async function handleSignOut() {
   await supabase.auth.signOut();
   state.session = null;
   state.whoamiResult = null;
+  state.enrollment = null;
+  state.enrollmentChecked = false;
   state.activeTab = 'signin';
   render();
 }
@@ -493,12 +730,20 @@ async function init() {
 
   const { data } = await supabase.auth.getSession();
   state.session = data.session;
-  render();
+  if (state.session) {
+    checkEnrollment();
+  } else {
+    render();
+  }
 
   supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'INITIAL_SESSION') return;
     state.session = session;
-    render();
+    if (session) {
+      checkEnrollment();
+    } else {
+      render();
+    }
   });
 }
 

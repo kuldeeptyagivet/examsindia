@@ -123,6 +123,120 @@ async function authenticate(request) {
   }
 }
 
+const CLASS_ENTRIES_BY_EXAM = {
+  aissee: ['class6', 'class9'],
+};
+
+const INDIA_STATES = [
+  'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam',
+  'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir',
+  'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh',
+  'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha',
+  'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana',
+  'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+];
+
+function todayISODate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function validateEnrollmentInput(body, examCode) {
+  const validClassEntries = CLASS_ENTRIES_BY_EXAM[examCode] || [];
+  if (!validClassEntries.includes(body.class_entry)) {
+    return 'invalid_class_entry';
+  }
+  if (typeof body.target_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.target_date)) {
+    return 'invalid_target_date';
+  }
+  if (body.target_date <= todayISODate()) {
+    return 'target_date_not_future';
+  }
+  if (typeof body.mobile_number !== 'string' || !/^[6-9]\d{9}$/.test(body.mobile_number)) {
+    return 'invalid_mobile_number';
+  }
+  const city = typeof body.city === 'string' ? body.city.trim() : '';
+  if (!city || city.length > 100) {
+    return 'invalid_city';
+  }
+  if (!INDIA_STATES.includes(body.state)) {
+    return 'invalid_state';
+  }
+  return null;
+}
+
+async function getEnrollment(env, email, examCode) {
+  return env.DB.prepare(
+    'SELECT * FROM student_enrollments WHERE student_email = ? AND exam_code = ?'
+  )
+    .bind(email, examCode)
+    .first();
+}
+
+async function handleGetEnrollment(request, env, examCode) {
+  const claims = await authenticate(request);
+  if (!claims) {
+    return { status: 401, body: { error: 'unauthorized' } };
+  }
+  const enrollment = await getEnrollment(env, claims.email, examCode);
+  return enrollment
+    ? { status: 200, body: { enrolled: true, enrollment } }
+    : { status: 200, body: { enrolled: false } };
+}
+
+async function handlePostEnrollment(request, env, examCode) {
+  const claims = await authenticate(request);
+  if (!claims) {
+    return { status: 401, body: { error: 'unauthorized' } };
+  }
+
+  const existing = await getEnrollment(env, claims.email, examCode);
+  if (existing) {
+    return { status: 409, body: { error: 'already_enrolled', enrollment: existing } };
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return { status: 400, body: { error: 'invalid_json' } };
+  }
+
+  const validationError = validateEnrollmentInput(body, examCode);
+  if (validationError) {
+    return { status: 400, body: { error: validationError } };
+  }
+
+  const id = crypto.randomUUID();
+  const enrollmentDate = todayISODate();
+
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO users (email, role, exam_code, class_entry, is_active)
+       VALUES (?, 'student', ?, ?, 1)
+       ON CONFLICT(email) DO UPDATE SET exam_code = excluded.exam_code, class_entry = excluded.class_entry, is_active = 1`
+    ).bind(claims.email, examCode, body.class_entry),
+    env.DB.prepare(
+      `INSERT INTO student_enrollments
+         (id, student_email, exam_code, class_entry, enrollment_date, target_date, mobile_number, city, state)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      id,
+      claims.email,
+      examCode,
+      body.class_entry,
+      enrollmentDate,
+      body.target_date,
+      body.mobile_number,
+      body.city.trim(),
+      body.state
+    ),
+  ]);
+
+  const enrollment = await getEnrollment(env, claims.email, examCode);
+  return { status: 201, body: { enrolled: true, enrollment } };
+}
+
 export default {
   async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
@@ -154,6 +268,16 @@ export default {
         JSON.stringify({ email: claims.email, sub: claims.sub, exam_code: examCode }),
         { status: 200, headers }
       );
+    }
+
+    if (url.pathname === '/enrollment' && request.method === 'GET') {
+      const { status, body } = await handleGetEnrollment(request, env, examCode);
+      return new Response(JSON.stringify(body), { status, headers });
+    }
+
+    if (url.pathname === '/enrollment' && request.method === 'POST') {
+      const { status, body } = await handlePostEnrollment(request, env, examCode);
+      return new Response(JSON.stringify(body), { status, headers });
     }
 
     return new Response(
