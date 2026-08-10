@@ -343,8 +343,11 @@ credentials that do need protecting: `wrangler secret put`, read only via
   "ensure project exists" pattern as the aissee deploy). Google
   Sign-In only (no email/password, no sign-up flow — single-operator
   tool; the seeded superadmin's first Google sign-in auto-provisions
-  their Supabase auth user). Gated by a new `GET /admin/whoami` Worker
-  route backed by `requireAdmin()` (JWT + live `users.role` lookup for
+  their Supabase auth user) — verified end-to-end with the real
+  superadmin account (`drtyagivet@gmail.com`), including the Google
+  Cloud OAuth client's Authorized JavaScript origins update needed for
+  the new subdomain. Gated by a new `GET /admin/whoami` Worker route
+  backed by `requireAdmin()` (JWT + live `users.role` lookup for
   `admin`/`superadmin`) — a signed-in non-admin account sees "not
   authorized" instead of the console shell. Shell has a left-nav with
   "Syllabus" functional and Exam Config / Test Composition / Student
@@ -361,17 +364,44 @@ credentials that do need protecting: `wrangler secret put`, read only via
   `GET/POST /admin/syllabus` and `PUT /admin/syllabus/:id`, all
   admin-gated and validated (`validateSyllabusInput`) the same way
   `/enrollment` is validated.
+- Bulk syllabus import from a local question-bank folder: "Connect
+  Folder" opens a native folder picker (`webkitdirectory`), reads
+  `_index.json` entirely client-side (never uploads the folder itself —
+  only chapter-level metadata: subject/chapter number/chapter name ever
+  leaves the browser), and caches it in memory. "Scan & Compare" then
+  diffs that against a fresh fetch of the current syllabus by
+  `(subject, chapter_number)` and shows new / changed / unchanged counts
+  plus chapters that exist in D1 but are no longer in the folder (each
+  with an opt-in Deactivate checkbox) — nothing is written until
+  "Apply Changes" is clicked. Backed by a new admin-gated
+  `POST /admin/syllabus/import` route that upserts via
+  `INSERT ... ON CONFLICT(exam_code, class_entry, subject, chapter_number)
+  DO UPDATE`, requiring a new unique index on `syllabus` (added in
+  `schema/schema.sql`, applied to live D1) to make that upsert possible.
+  Verified end-to-end: imported all 66 chapters (5 subjects) of AISSEE
+  Class 6 from a real question-bank folder, then re-ran Scan & Compare
+  and confirmed it reported 0 new/0 changed/66 unchanged — proving the
+  upsert is idempotent rather than duplicating on re-import. Deliberately
+  reads the local Google Drive folder (the authoring source) rather than
+  R2 (`examsindia-qbank`, the deployment target for actual question
+  content, still empty) — see Decisions Log.
 - `users` table seeded with the first superadmin
   (`drtyagivet@gmail.com`) directly in `schema/schema.sql`, applied to
   live D1 via the dashboard console.
+- AISSEE Class 6 syllabus populated: all 66 chapters across Mathematics
+  (17), Intelligence (13), English (19), General Knowledge (4), and
+  General Science (13), imported from the question bank via the above.
 
 **Not yet built:**
-- R2 question bank content, `scheduled_tests` content and the
-  schedule-generation algorithm itself, remaining admin console tabs
-  (Exam Config, Test Composition, Student Management, Announcements,
-  Messaging), CBT attempt screen, normalisation cron, scheduled
-  D1-to-R2 backup export cron route, ability to change exam/class after
-  enrollment (by design requires admin intervention per the existing
+- R2 question bank content (Class 6 syllabus metadata now exists in D1,
+  but the actual question JSON files are still only local — nothing
+  uploaded to R2 yet), Class 9 and other exams' syllabus content,
+  `scheduled_tests` content and the schedule-generation algorithm
+  itself, remaining admin console tabs (Exam Config, Test Composition,
+  Student Management, Announcements, Messaging), CBT attempt screen,
+  normalisation cron, scheduled D1-to-R2 backup export cron route,
+  ability to change exam/class after enrollment (by design requires
+  admin intervention per the existing
   decision — now actionable once Student Management ships)
 
 ---
@@ -617,6 +647,31 @@ credentials that do need protecting: `wrangler secret put`, read only via
   superadmin row's role. Schedule-row generation deliberately excluded
   from this piece — `syllabus` and `scheduled_tests` are both empty in
   D1, so there's nothing yet to generate a schedule against.
+2026-08-10 — Syllabus bulk import reads the local Google Drive question-
+  bank folder (via the browser's native folder picker) rather than R2.
+  R2 (`examsindia-qbank`) is the deployment target for actual question
+  content, used only at test-composition time per ARCHITECTURE.md §1,
+  and nothing has been uploaded there yet — requiring an R2 upload
+  pipeline to exist before today's syllabus could be seeded would be
+  backwards for what's a lightweight catalog operation (chapter names/
+  order only, not question content). The local folder is the natural
+  authoring source; R2 becomes the sync target once Test Composition
+  needs to read real question content, at which point an "upload to R2"
+  step gets added as its own piece of work, not this one.
+2026-08-10 — Syllabus import is upsert-only, never destructive by
+  default: re-running it against an unchanged folder updates nothing
+  (verified: 0 new/0 changed/66 unchanged on a second run against the
+  same folder). Chapters present in D1 but missing from the folder are
+  surfaced in the Scan & Compare diff with an opt-in checkbox rather
+  than being auto-deactivated — a chapter already referenced by a
+  scheduled test shouldn't disappear without the admin explicitly
+  choosing that.
+2026-08-10 — Added a unique index on
+  `syllabus(exam_code, class_entry, subject, chapter_number)` to make
+  the import upsert (`INSERT ... ON CONFLICT ... DO UPDATE`) possible.
+  Table was empty in live D1 at the time, so the migration couldn't
+  fail on a pre-existing duplicate — confirmed via `SELECT COUNT(*)`
+  before applying it.
 
 ---
 

@@ -174,3 +174,34 @@ and is read by the student-facing frontend at request time rather than
 baked into it, admin edits take effect immediately without a frontend
 deploy — the console is a management UI over data the Worker already
 serves, not a code-generation step.
+
+**Bulk syllabus import (Connect Folder → Scan & Compare):** rather than
+hand-entering each chapter, the Syllabus tab can import chapter-level
+metadata directly from a question-bank folder's `_index.json`. This is
+a two-step, read-before-write flow:
+
+1. **Connect Folder** — a native folder picker (`<input webkitdirectory>`)
+   reads `_index.json` from the selected folder entirely client-side.
+   Only chapter-level fields (`section_name`, `chapter`, `chapter_name`)
+   are parsed into memory; the folder itself is never uploaded anywhere.
+2. **Scan & Compare** — fetches the current `syllabus` rows for the
+   selected exam/class fresh from the Worker and diffs them against the
+   connected folder by `(subject, chapter_number)`, producing four
+   buckets: new, changed (old → new shown inline), unchanged (count
+   only), and "in syllabus but not in folder" (each with an opt-in
+   Deactivate checkbox — never auto-removed). Nothing is written until
+   **Apply Changes** is clicked.
+
+Apply sends new/changed rows to `POST /admin/syllabus/import`, which
+upserts via `INSERT ... ON CONFLICT(exam_code, class_entry, subject,
+chapter_number) DO UPDATE` — backed by a unique index on that same
+column set (`schema/schema.sql`). This makes the import idempotent:
+re-running Scan & Compare against an unchanged folder reports 0 new/0
+changed, never duplicates. Any rows with the Deactivate checkbox
+checked go through the existing `PUT /admin/syllabus/:id` path instead.
+
+The source folder is the local Google Drive question-bank directory
+(the authoring location), not R2. R2 (`examsindia-qbank`) stays the
+deployment target for actual question *content*, populated separately
+once Test Composition needs to read real questions — see §1 and the
+Decisions Log for why syllabus import doesn't route through R2.

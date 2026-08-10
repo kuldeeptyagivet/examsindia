@@ -161,3 +161,65 @@ and Activate/Deactivate, plus a modal Add/Edit form with a repeatable
 topic-heading list. Not yet verified live — needs the manual Google
 Cloud (authorized JavaScript origin) and Cloudflare Pages (custom
 domain) steps before it can be signed into at the real subdomain.
+
+Completed the three manual steps live in the browser: added
+`admin.examsindia.org` as a custom domain on the `examsindia-admin`
+Pages project (DNS auto-configured, active almost immediately — same as
+`aissee.examsindia.org` earlier), added the same origin as an
+Authorized JavaScript origin on the existing `examsindia` Google Cloud
+OAuth client, and ran the superadmin seed INSERT against live D1.
+Caught a real mismatch during sign-in testing: the browser's active
+Google session was a different account than the seeded superadmin
+email — switched accounts rather than seeding the wrong one. Full chain
+then verified end-to-end with the real account: signed in, shell
+rendered with only Syllabus enabled, `/admin/whoami` recognized
+superadmin.
+
+Reworked chapter entry after starting to add them by hand: rather than
+89 manual "Add Chapter" round-trips, built bulk import from a real
+question-bank folder (`SAINIK_CLA6`, matching `QB_QUESTION_SCHEMA` from
+CLAUDE.md exactly, including a `topic_heading` per question). Confirmed
+with the user that heading-level granularity is unnecessary since tests
+are composed chapter-wise, not sub-topic-wise — so import only needs
+`_index.json`'s chapter-level fields (subject/chapter number/chapter
+name/count), not the full per-question files.
+
+Discussed where the import should read from, since the same folder
+will eventually be mirrored into R2 for test composition. Concluded
+local disk is right for now: R2 is empty and only matters once Test
+Composition needs actual question content, and requiring an R2 upload
+pipeline before syllabus could even be seeded would be backwards for
+what's lightweight catalog data. Local Drive folder is the authoring
+source; R2 becomes the sync target later, as its own separate piece of
+work.
+
+First cut was a single "Import from Folder" button that just wrote
+whatever was in `_index.json`. User pushed back before it shipped:
+re-running it would need to update changed chapters and add new ones
+without duplicating existing ones, and specifically asked to discuss
+the design rather than have it built silently. Redesigned as two
+explicit steps — "Connect Folder" (parse and cache, no writes) then
+"Scan & Compare" (fresh-fetch current syllabus, diff by
+`(subject, chapter_number)`, show new/changed/unchanged counts before
+anything is written). Chapters in D1 but missing from the folder get
+flagged with an opt-in Deactivate checkbox rather than being
+auto-removed, per the user's choice — a chapter already referenced by
+a scheduled test shouldn't silently disappear.
+
+Backend: new `POST /admin/syllabus/import` Worker route, upserting via
+`INSERT ... ON CONFLICT(exam_code, class_entry, subject,
+chapter_number) DO UPDATE`. Needed a new unique index on that column
+set (`schema/schema.sql`) to make the upsert possible — checked
+`syllabus` was empty in live D1 first so the migration couldn't fail
+on a pre-existing duplicate.
+
+Verified live end-to-end: connected the real `SAINIK_CLA6` folder,
+Scan & Compare correctly reported 66 new chapters across 5 subjects
+(Mathematics 17, Intelligence 13, English 19, General Knowledge 4,
+General Science 13 — matching `_index.json` exactly), applied them, and
+confirmed all 66 rows in the syllabus table. Re-connected the same
+folder and re-ran Scan & Compare: 0 new/0 changed/66 unchanged,
+confirming the upsert is idempotent rather than duplicating on
+re-import. Also fixed a CSS gap while testing at a narrower viewport:
+the Syllabus tab's selector/button row had no `flex-wrap` and squished
+at smaller widths.
