@@ -375,6 +375,18 @@ credentials that do need protecting: `wrangler secret put`, read only via
   not found"); fixed with a separate `pages project create` step marked
   `continue-on-error: true` so it's a no-op on every subsequent deploy
   once the project exists.
+2026-08-10 — Confirmed explicitly (already implied by the shared
+  Supabase project decision, but stated plainly now): the user identity
+  pool is single and domain-wide, not subdomain-specific. One set of
+  credentials (email/password or Google) authenticates a student on any
+  exam subdomain, since there's one Supabase Auth project. This is
+  identity only — access stays scoped to the student's own `exam_code`/
+  `class_entry` from `users`, checked against the D1 record, not
+  inferred from whichever subdomain's Origin the request came through.
+  A student authenticated on the wrong subdomain for their enrollment
+  is denied/shown a not-enrolled state, never served another exam's
+  data. Affects the Worker's not-yet-built D1 authorization checks — see
+  ARCHITECTURE.md §3.
 
 ---
 
