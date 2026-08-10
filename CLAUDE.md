@@ -197,13 +197,28 @@ credentials that do need protecting: `wrangler secret put`, read only via
 **Working:**
 - Project structure initialised
 - Documentation complete (CLAUDE.md, ARCHITECTURE.md, DEVLOG.md)
-- D1 schema designed (schema/schema.sql)
+- D1 schema designed and deployed (schema/schema.sql; all 10 tables live,
+  aissee exams row and platform_config defaults seeded)
+- Supabase project created (`ExamsIndia`, ap-southeast-1); Project URL and
+  publishable key captured; JWKS-based auth confirmed as the verification
+  path (see §5)
+- Cloudflare infra created: D1 database `examsindia-db`, R2 bucket
+  `examsindia-qbank` with `aissee/class6/` and `aissee/class9/` folders
+- GitHub repo `kuldeeptyagivet/examsindia` created (public) with
+  `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` repo secrets
+- `wrangler.toml` filled in with real D1 binding and R2 binding; Worker
+  named `examsindia-worker`
+- Deploy pipeline verified green end-to-end: push to `main` → GitHub
+  Actions → Wrangler → Cloudflare, confirmed live at
+  `examsindia-worker.kuldeeptyagi-vet.workers.dev` serving a placeholder
+  response
 
 **Not yet built:**
-- Everything else (frontend, Worker logic, Supabase project setup, D1
-  deployment, R2 bucket and question bank content, admin panel, CBT attempt
-  screen, scheduling engine, normalisation cron, CI/CD wiring, scheduled
-  D1-to-R2 backup export cron route)
+- Everything else (frontend, real Worker logic — JWT/JWKS validation,
+  origin routing, D1/R2 reads and writes — R2 question bank content,
+  admin panel, CBT attempt screen, scheduling engine, normalisation cron,
+  scheduled D1-to-R2 backup export cron route, custom domain / subdomain
+  wiring for aissee.examsindia.org)
 
 ---
 
@@ -284,6 +299,17 @@ credentials that do need protecting: `wrangler secret put`, read only via
   Supabase's public JWKS instead of a shared secret. This removes
   `SUPABASE_JWT_SECRET` from the architecture entirely — one fewer Worker
   secret to manage, and no `wrangler secret put` step for auth.
+2026-08-10 — External infrastructure provisioned and deploy pipeline
+  verified before any application code was written: Supabase project,
+  Cloudflare D1 database + R2 bucket/folders, GitHub repo + CI secrets,
+  `wrangler.toml` filled in with real bindings, and a placeholder Worker
+  pushed through GitHub Actions → Wrangler → Cloudflare to confirm the
+  whole chain works. Caught and fixed a real schema bug in the process:
+  `platform_config`'s seed INSERT referenced `exam_code='aissee'` via FK
+  but no `exams` row existed yet — added an `exams` seed row ahead of it
+  in `schema/schema.sql`, verified against the live D1 database via the
+  dashboard Console (which accepts a full semicolon-separated multi-
+  statement batch in one execute, not just single statements).
 
 ---
 
