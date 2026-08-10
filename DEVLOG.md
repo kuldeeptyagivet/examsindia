@@ -39,3 +39,24 @@ loads at the real domain, and the Worker's CORS allowlist now accepts
 requests from it — /whoami correctly returns 401 for an invalid token
 instead of being CORS-blocked as it was from localhost. Still open: a
 genuinely valid JWT success path, which needs a real sign-up.
+
+Google OAuth configured in Supabase. First attempt reused the existing
+"My First Project" in Google Cloud, which already had an unrelated
+OAuth client and consent-screen branding for "Claude Drive" — caught
+live when the Google sign-in screen said "to continue to Claude Drive"
+instead of anything ExamsIndia-branded, since consent-screen branding
+is shared per-project in Google Cloud. Fixed by creating a dedicated
+`examsindia` project with its own consent screen (app name "Exams
+India" — domain-wide per the shared-identity decision, not
+AISSEE-specific), publishing it to production, and creating a fresh
+OAuth client there. Confirmed fixed by triggering the real sign-in
+redirect from the live site and seeing "to continue to Exams India".
+Cleaned up the leftover wrongly-scoped client from the old project and
+trimmed down to one active client secret.
+
+Clarified: user identity (Supabase Auth) is one shared pool across all
+exam subdomains — same credentials work anywhere — but content access
+stays scoped to each user's own exam_code/class_entry in D1, never
+inferred from which subdomain they signed in through. Logged as an
+explicit requirement for the Worker's authorization checks, not yet
+built.

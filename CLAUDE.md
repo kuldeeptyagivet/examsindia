@@ -229,8 +229,25 @@ credentials that do need protecting: `wrangler secret put`, read only via
   blocks bad input before any Supabase call; touch targets ≥44px, input
   font 16px, `touch-action: manipulation` all confirmed via computed
   styles. Not yet verified: real sign-up/sign-in (needs the user's own
-  credentials, not something to submit on their behalf) and Google
-  OAuth end-to-end (provider not yet configured in Supabase).
+  credentials, not something to submit on their behalf).
+- Google OAuth fully configured and verified end-to-end. Uses a
+  dedicated Google Cloud project (`examsindia`, app name "Exams India"
+  — domain-wide, not "AISSEE", matching the shared-identity decision
+  below) rather than an existing project that had unrelated "Claude
+  Drive" branding on its shared OAuth consent screen — reusing it would
+  have shown every student that wrong app name at sign-in with no way
+  to fix it without risking an unrelated integration. Consent screen
+  published to production (no Google verification required: single
+  domain, no logo, only email/profile/openid scopes). Client:
+  "Exams India Web", JS origin `https://aissee.examsindia.org`, redirect
+  URI is Supabase's fixed callback
+  (`https://knkmcpbyrgrbgpriztnj.supabase.co/auth/v1/callback`). Verified
+  by triggering the real redirect from the live site and confirming the
+  Google consent screen shows "to continue to Exams India" — not
+  completed further, since finishing sign-in requires real user
+  consent. Client secret is regenerate-only after creation (Google
+  never shows it twice); exactly one active secret exists after
+  cleanup.
 - `aissee.examsindia.org` live via Cloudflare Pages: project
   `examsindia-aissee` deploys automatically via GitHub Actions +
   Wrangler (`.github/workflows/deploy-pages.yml`, triggers on any push
@@ -250,8 +267,7 @@ credentials that do need protecting: `wrangler secret put`, read only via
 - Everything else (D1/R2 reads and writes in the Worker, R2 question
   bank content, enrollment/schedule flow, admin panel, CBT attempt
   screen, scheduling engine, normalisation cron, scheduled D1-to-R2
-  backup export cron route, Google OAuth provider configuration in
-  Supabase)
+  backup export cron route)
 
 ---
 
@@ -387,6 +403,23 @@ credentials that do need protecting: `wrangler secret put`, read only via
   is denied/shown a not-enrolled state, never served another exam's
   data. Affects the Worker's not-yet-built D1 authorization checks — see
   ARCHITECTURE.md §3.
+2026-08-10 — Google OAuth uses a dedicated Google Cloud project
+  (`examsindia`), not the pre-existing "My First Project" that already
+  had an unrelated OAuth client ("Claude MCP") and shared consent-screen
+  branding for something called "Claude Drive". Reusing it was tried
+  first and caught live: the Google sign-in consent screen showed "to
+  continue to Claude Drive" instead of any ExamsIndia branding, because
+  Google's OAuth consent-screen branding is one-per-project, shared
+  across every client in that project — editing it in place would have
+  changed branding for that unrelated integration too. App name is
+  "Exams India" (not "AISSEE — Exams India"), matching the domain-wide
+  shared-identity decision above — the consent screen must read
+  correctly regardless of which exam subdomain a student signs in from.
+  Cleaned up afterward: deleted the wrongly-scoped "ExamsIndia AISSEE"
+  client from "My First Project" (left "Claude MCP" untouched), and
+  reduced the new client down to one active secret (an extra one was
+  generated when the original creation dialog's one-time secret display
+  was missed due to a tab-focus issue during setup).
 
 ---
 
