@@ -210,13 +210,21 @@ credentials that do need protecting: `wrangler secret put`, read only via
   named `examsindia-worker`
 - Deploy pipeline verified green end-to-end: push to `main` → GitHub
   Actions → Wrangler → Cloudflare, confirmed live at
-  `examsindia-worker.kuldeeptyagi-vet.workers.dev` serving a placeholder
-  response
+  `examsindia-worker.kuldeeptyagi-vet.workers.dev`
+- Worker auth/routing skeleton live (`worker/worker.js`): verifies
+  Supabase JWTs against the public JWKS (ES256) using native Web Crypto
+  only, no dependencies; enforces the `ALLOWED_ORIGINS` CORS allowlist;
+  derives `exam_code` from Origin; `/whoami` test route exercises the
+  auth path. Verified via curl: no/disallowed Origin → 403; missing or
+  garbage Bearer token on `/whoami` → 401; allowed origins resolve to
+  the right `exam_code`. Not yet verified: a genuinely valid Supabase JWT
+  on the success path — needs a real signed-up test account, deferred
+  until the frontend sign-up flow exists. No D1/R2 reads/writes yet.
 
 **Not yet built:**
-- Everything else (frontend, real Worker logic — JWT/JWKS validation,
-  origin routing, D1/R2 reads and writes — R2 question bank content,
-  admin panel, CBT attempt screen, scheduling engine, normalisation cron,
+- Everything else (frontend, D1/R2 reads and writes in the Worker,
+  R2 question bank content, admin panel, CBT attempt screen, scheduling
+  engine, normalisation cron,
   scheduled D1-to-R2 backup export cron route, custom domain / subdomain
   wiring for aissee.examsindia.org)
 
@@ -310,6 +318,16 @@ credentials that do need protecting: `wrangler secret put`, read only via
   in `schema/schema.sql`, verified against the live D1 database via the
   dashboard Console (which accepts a full semicolon-separated multi-
   statement batch in one execute, not just single statements).
+2026-08-10 — First real application code: Worker auth/routing skeleton.
+  JWT/JWKS verification implemented with native Web Crypto (ECDSA
+  P-256/SHA-256 `crypto.subtle.verify`) rather than a library like
+  `jose`, matching the project's no-build-step, no-dependency ethos
+  established for the frontend. JWKS cached in-memory per Worker isolate
+  with a 1-hour TTL rather than fetched on every request. Deployed and
+  verified via curl for all negative paths (bad/missing origin, missing
+  or malformed token); the valid-token success path is intentionally
+  untested until a real signed-up account exists, since creating a test
+  account isn't something to do outside the actual sign-up flow.
 
 ---
 
