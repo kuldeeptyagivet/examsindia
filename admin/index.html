@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ExamsIndia Admin</title>
+<script src="https://accounts.google.com/gsi/client" defer></script>
+<style>
+  :root {
+    --ink: #14213d;
+    --paper: #ffffff;
+    --cream: #f7f5f0;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --success: #16a34a;
+    --warn: #dc2626;
+    --font-display: 'Georgia', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--cream);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 14px;
+  }
+  #signin-screen {
+    max-width: 380px;
+    margin: 80px auto;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px 28px;
+    text-align: center;
+  }
+  #signin-screen h1 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    margin: 0 0 6px;
+  }
+  #signin-screen p { color: var(--muted); margin: 0 0 24px; }
+  #google-btn-container { display: flex; justify-content: center; min-height: 44px; }
+  .not-authorized {
+    max-width: 380px;
+    margin: 80px auto;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px 28px;
+    text-align: center;
+  }
+  .not-authorized p { color: var(--warn); margin: 0 0 16px; }
+
+  #shell { display: flex; min-height: 100vh; }
+  #sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 20px 0;
+    display: flex;
+    flex-direction: column;
+  }
+  #sidebar h1 {
+    font-family: var(--font-display);
+    font-size: 18px;
+    margin: 0 0 4px;
+    padding: 0 20px;
+  }
+  #sidebar .email {
+    font-size: 12px;
+    color: #9ca3af;
+    padding: 0 20px;
+    margin: 0 0 20px;
+    word-break: break-all;
+  }
+  .nav-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--paper);
+    font-size: 14px;
+    padding: 12px 20px;
+    cursor: pointer;
+    font-family: var(--font-body);
+  }
+  .nav-item.active { background: rgba(255,255,255,0.12); font-weight: 700; }
+  .nav-item:disabled { color: #6b7280; cursor: not-allowed; }
+  .nav-item .soon { font-size: 11px; display: block; color: #9ca3af; }
+  #signout-btn {
+    margin: auto 20px 0;
+    background: rgba(255,255,255,0.12);
+    color: var(--paper);
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    font-family: var(--font-body);
+  }
+  #main { flex: 1; padding: 32px 40px; max-width: 1000px; }
+  #main h2 { font-family: var(--font-display); font-size: 22px; margin: 0 0 20px; }
+
+  .selectors { display: flex; gap: 12px; margin-bottom: 24px; }
+  select, input[type="text"], input[type="number"] {
+    height: 38px;
+    font-size: 14px;
+    font-family: var(--font-body);
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .btn {
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 6px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-body);
+  }
+  .btn-primary { background: var(--ink); color: var(--paper); }
+  .btn-secondary { background: var(--paper); color: var(--ink); border: 1px solid var(--border); }
+  .btn-small { height: 30px; padding: 0 10px; font-size: 12px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--paper); border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { background: var(--cream); font-weight: 600; color: var(--muted); }
+  tr.inactive td { color: var(--muted); }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 999px; font-weight: 600; }
+  .badge-active { background: #f0fdf4; color: var(--success); }
+  .badge-inactive { background: #f3f4f6; color: var(--muted); }
+  .row-actions { display: flex; gap: 6px; }
+
+  .msg { font-size: 13px; padding: 10px 12px; border-radius: 8px; margin-bottom: 16px; }
+  .msg-error { background: #fef2f2; color: var(--warn); }
+  .msg-success { background: #f0fdf4; color: var(--success); }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center; z-index: 50;
+  }
+  .modal {
+    background: var(--paper); border-radius: 10px; padding: 24px;
+    width: 480px; max-width: 90vw; max-height: 85vh; overflow-y: auto;
+  }
+  .modal h3 { margin: 0 0 16px; font-family: var(--font-display); font-size: 18px; }
+  .form-row { margin-bottom: 14px; }
+  .form-row label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+  .form-row input { width: 100%; }
+  .heading-row { display: flex; gap: 6px; margin-bottom: 6px; }
+  .heading-row input { flex: 1; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+  .field-error { color: var(--warn); font-size: 12px; margin-top: 8px; }
+  .empty-state { color: var(--muted); padding: 30px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const CONFIG = {
+  supabaseUrl: 'https://knkmcpbyrgrbgpriztnj.supabase.co',
+  supabaseAnonKey: 'sb_publishable_Rv2ZG9LMWw9p-YrwwFuuUQ_ecmCLTGW',
+  workerUrl: 'https://examsindia-worker.kuldeeptyagi-vet.workers.dev',
+  googleClientId: '637390801046-2da7gnoosbdsp6en96flvqjd2j3asmtk.apps.googleusercontent.com',
+};
+
+const supabase = createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
+
+const NAV_ITEMS = [
+  { key: 'syllabus', label: 'Syllabus', enabled: true },
+  { key: 'exam_config', label: 'Exam Config', enabled: false },
+  { key: 'test_composition', label: 'Test Composition', enabled: false },
+  { key: 'students', label: 'Student Management', enabled: false },
+  { key: 'announcements', label: 'Announcements', enabled: false },
+  { key: 'messaging', label: 'Messaging', enabled: false },
+];
+
+let state = {
+  session: null,
+  authChecked: false,
+  adminInfo: null, // { email, role } once /admin/whoami succeeds
+  notAuthorized: false,
+  activeTab: 'syllabus',
+  message: null,
+  loading: false,
+
+  meta: null, // { exams, classEntriesByExam }
+  selectedExam: '',
+  selectedClass: '',
+  syllabus: [],
+  syllabusLoaded: false,
+
+  modal: null, // { mode: 'add'|'edit', form: {...} } or null
+};
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+async function authHeaders() {
+  return { Authorization: `Bearer ${state.session?.access_token}` };
+}
+
+function renderMessage() {
+  if (!state.message) return '';
+  const cls = state.message.type === 'error' ? 'msg-error' : 'msg-success';
+  return `<div class="msg ${cls}">${escapeHtml(state.message.text)}</div>`;
+}
+
+function renderSignIn() {
+  return `
+    <div id="signin-screen">
+      <h1>ExamsIndia Admin</h1>
+      <p>Sign in with your admin Google account.</p>
+      ${renderMessage()}
+      <div id="google-btn-container"></div>
+    </div>
+  `;
+}
+
+function renderNotAuthorized() {
+  return `
+    <div class="not-authorized">
+      <p>This account is not authorized for the admin console.</p>
+      <button id="signout-btn-noauth" class="btn btn-secondary">Sign Out</button>
+    </div>
+  `;
+}
+
+function renderNav() {
+  const items = NAV_ITEMS.map((item) => {
+    if (!item.enabled) {
+      return `<button class="nav-item" disabled>${item.label}<span class="soon">coming soon</span></button>`;
+    }
+    return `<button class="nav-item ${state.activeTab === item.key ? 'active' : ''}" data-tab="${item.key}">${item.label}</button>`;
+  }).join('');
+  return `
+    <div id="sidebar">
+      <h1>ExamsIndia</h1>
+      <p class="email">${escapeHtml(state.adminInfo.email)}</p>
+      ${items}
+      <button id="signout-btn" class="btn">Sign Out</button>
+    </div>
+  `;
+}
+
+function renderSyllabusTab() {
+  const exams = state.meta?.exams || [];
+  const classEntries = state.selectedExam
+    ? (state.meta.classEntriesByExam[state.selectedExam] || [])
+    : [];
+
+  const rows = state.syllabus.map((row, idx) => {
+    const headingCount = row.topic_headings.length;
+    return `
+      <tr class="${row.is_active ? '' : 'inactive'}">
+        <td>${row.sort_order}</td>
+        <td>${escapeHtml(row.subject)}</td>
+        <td>${row.chapter_number}</td>
+        <td>${escapeHtml(row.chapter_name)}</td>
+        <td>${headingCount}</td>
+        <td><span class="badge ${row.is_active ? 'badge-active' : 'badge-inactive'}">${row.is_active ? 'Active' : 'Inactive'}</span></td>
+        <td>
+          <div class="row-actions">
+            <button class="btn btn-small btn-secondary" data-move-up="${row.id}" ${idx === 0 ? 'disabled' : ''}>&uarr;</button>
+            <button class="btn btn-small btn-secondary" data-move-down="${row.id}" ${idx === state.syllabus.length - 1 ? 'disabled' : ''}>&darr;</button>
+            <button class="btn btn-small btn-secondary" data-edit="${row.id}">Edit</button>
+            <button class="btn btn-small btn-secondary" data-toggle-active="${row.id}">${row.is_active ? 'Deactivate' : 'Activate'}</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  const table = !state.selectedExam || !state.selectedClass
+    ? `<div class="empty-state">Select an exam and class to view its syllabus.</div>`
+    : (!state.syllabusLoaded
+        ? `<div class="empty-state">Loading…</div>`
+        : (state.syllabus.length === 0
+            ? `<div class="empty-state">No chapters yet. Click "Add Chapter" to create the first one.</div>`
+            : `<table>
+                <thead><tr>
+                  <th>Order</th><th>Subject</th><th>Ch #</th><th>Chapter</th>
+                  <th>Topics</th><th>Status</th><th></th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+              </table>`));
+
+  return `
+    <h2>Syllabus</h2>
+    ${renderMessage()}
+    <div class="selectors">
+      <select id="exam-select">
+        <option value="">Select exam</option>
+        ${exams.map((e) => `<option value="${e.code}" ${state.selectedExam === e.code ? 'selected' : ''}>${escapeHtml(e.name)}</option>`).join('')}
+      </select>
+      <select id="class-select" ${!state.selectedExam ? 'disabled' : ''}>
+        <option value="">Select class</option>
+        ${classEntries.map((c) => `<option value="${c}" ${state.selectedClass === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+      </select>
+      <button id="add-chapter-btn" class="btn btn-primary" ${(!state.selectedExam || !state.selectedClass) ? 'disabled' : ''}>Add Chapter</button>
+    </div>
+    ${table}
+  `;
+}
+
+function renderModal() {
+  if (!state.modal) return '';
+  const f = state.modal.form;
+  const headingRows = f.topicHeadings.map((h, i) => `
+    <div class="heading-row">
+      <input type="text" data-heading-idx="${i}" value="${escapeHtml(h)}">
+      <button type="button" class="btn btn-small btn-secondary" data-remove-heading="${i}">&times;</button>
+    </div>
+  `).join('');
+
+  return `
+    <div class="modal-backdrop" id="modal-backdrop">
+      <div class="modal">
+        <h3>${state.modal.mode === 'add' ? 'Add Chapter' : 'Edit Chapter'}</h3>
+        ${state.modal.error ? `<div class="field-error">${escapeHtml(state.modal.error)}</div>` : ''}
+        <div class="form-row">
+          <label>Subject</label>
+          <input type="text" id="modal-subject" value="${escapeHtml(f.subject)}">
+        </div>
+        <div class="form-row">
+          <label>Chapter Number</label>
+          <input type="number" id="modal-chapter-number" min="1" value="${f.chapterNumber}">
+        </div>
+        <div class="form-row">
+          <label>Chapter Name</label>
+          <input type="text" id="modal-chapter-name" value="${escapeHtml(f.chapterName)}">
+        </div>
+        <div class="form-row">
+          <label>Sort Order</label>
+          <input type="number" id="modal-sort-order" min="0" value="${f.sortOrder}">
+        </div>
+        <div class="form-row">
+          <label>Topic Headings</label>
+          ${headingRows}
+          <button type="button" class="btn btn-small btn-secondary" id="add-heading-btn">+ Add Topic Heading</button>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="modal-cancel-btn">Cancel</button>
+          <button class="btn btn-primary" id="modal-save-btn" ${state.loading ? 'disabled' : ''}>${state.loading ? 'Saving…' : 'Save'}</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderTabContent() {
+  if (state.activeTab === 'syllabus') return renderSyllabusTab();
+  return '';
+}
+
+function render() {
+  const app = document.getElementById('app');
+
+  if (!state.authChecked) {
+    app.innerHTML = `<div class="not-authorized"><p style="color: var(--muted)">Loading…</p></div>`;
+    return;
+  }
+  if (!state.session) {
+    app.innerHTML = renderSignIn();
+    attachSignInHandlers();
+    return;
+  }
+  if (state.notAuthorized) {
+    app.innerHTML = renderNotAuthorized();
+    document.getElementById('signout-btn-noauth').addEventListener('click', handleSignOut);
+    return;
+  }
+  if (!state.adminInfo) {
+    app.innerHTML = `<div class="not-authorized"><p style="color: var(--muted)">Checking authorization…</p></div>`;
+    return;
+  }
+
+  app.innerHTML = `
+    <div id="shell">
+      ${renderNav()}
+      <div id="main">${renderTabContent()}</div>
+    </div>
+    ${renderModal()}
+  `;
+  attachShellHandlers();
+}
+
+function attachSignInHandlers() {
+  renderGoogleButton();
+}
+
+function attachShellHandlers() {
+  document.getElementById('signout-btn')?.addEventListener('click', handleSignOut);
+
+  document.querySelectorAll('[data-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.activeTab = btn.dataset.tab;
+      render();
+    });
+  });
+
+  document.getElementById('exam-select')?.addEventListener('change', (e) => {
+    state.selectedExam = e.target.value;
+    state.selectedClass = '';
+    state.syllabus = [];
+    state.syllabusLoaded = false;
+    render();
+  });
+
+  document.getElementById('class-select')?.addEventListener('change', (e) => {
+    state.selectedClass = e.target.value;
+    loadSyllabus();
+  });
+
+  document.getElementById('add-chapter-btn')?.addEventListener('click', () => {
+    const maxSort = state.syllabus.reduce((m, r) => Math.max(m, r.sort_order), -1);
+    state.modal = {
+      mode: 'add',
+      error: null,
+      form: { id: null, subject: '', chapterNumber: 1, chapterName: '', sortOrder: maxSort + 1, topicHeadings: [''], isActive: true },
+    };
+    render();
+  });
+
+  document.querySelectorAll('[data-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const row = state.syllabus.find((r) => r.id === btn.dataset.edit);
+      if (!row) return;
+      state.modal = {
+        mode: 'edit',
+        error: null,
+        form: {
+          id: row.id,
+          subject: row.subject,
+          chapterNumber: row.chapter_number,
+          chapterName: row.chapter_name,
+          sortOrder: row.sort_order,
+          topicHeadings: row.topic_headings.length ? [...row.topic_headings] : [''],
+          isActive: !!row.is_active,
+        },
+      };
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-toggle-active]').forEach((btn) => {
+    btn.addEventListener('click', () => toggleActive(btn.dataset.toggleActive));
+  });
+
+  document.querySelectorAll('[data-move-up]').forEach((btn) => {
+    btn.addEventListener('click', () => moveRow(btn.dataset.moveUp, -1));
+  });
+  document.querySelectorAll('[data-move-down]').forEach((btn) => {
+    btn.addEventListener('click', () => moveRow(btn.dataset.moveDown, 1));
+  });
+
+  attachModalHandlers();
+}
+
+function attachModalHandlers() {
+  if (!state.modal) return;
+  document.getElementById('modal-cancel-btn')?.addEventListener('click', () => {
+    state.modal = null;
+    render();
+  });
+  document.getElementById('modal-backdrop')?.addEventListener('click', (e) => {
+    if (e.target.id === 'modal-backdrop') {
+      state.modal = null;
+      render();
+    }
+  });
+  document.getElementById('modal-subject')?.addEventListener('input', (e) => {
+    state.modal.form.subject = e.target.value;
+  });
+  document.getElementById('modal-chapter-number')?.addEventListener('input', (e) => {
+    state.modal.form.chapterNumber = parseInt(e.target.value, 10) || 0;
+  });
+  document.getElementById('modal-chapter-name')?.addEventListener('input', (e) => {
+    state.modal.form.chapterName = e.target.value;
+  });
+  document.getElementById('modal-sort-order')?.addEventListener('input', (e) => {
+    state.modal.form.sortOrder = parseInt(e.target.value, 10) || 0;
+  });
+  document.querySelectorAll('[data-heading-idx]').forEach((input) => {
+    input.addEventListener('input', (e) => {
+      const idx = parseInt(e.target.dataset.headingIdx, 10);
+      state.modal.form.topicHeadings[idx] = e.target.value;
+    });
+  });
+  document.querySelectorAll('[data-remove-heading]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.removeHeading, 10);
+      state.modal.form.topicHeadings.splice(idx, 1);
+      if (state.modal.form.topicHeadings.length === 0) state.modal.form.topicHeadings.push('');
+      render();
+    });
+  });
+  document.getElementById('add-heading-btn')?.addEventListener('click', () => {
+    state.modal.form.topicHeadings.push('');
+    render();
+  });
+  document.getElementById('modal-save-btn')?.addEventListener('click', saveModal);
+}
+
+async function renderGoogleButton() {
+  const container = document.getElementById('google-btn-container');
+  if (!container || !window.google?.accounts?.id) return;
+
+  const rawNonce = crypto.randomUUID() + crypto.randomUUID();
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawNonce));
+  const hashedNonce = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  window.__adminGoogleRawNonce = rawNonce;
+
+  google.accounts.id.initialize({
+    client_id: CONFIG.googleClientId,
+    callback: handleGoogleCredentialResponse,
+    nonce: hashedNonce,
+    use_fedcm_for_prompt: true,
+  });
+
+  container.innerHTML = '';
+  google.accounts.id.renderButton(container, {
+    theme: 'outline',
+    size: 'large',
+    width: 300,
+    text: 'continue_with',
+  });
+}
+
+async function handleGoogleCredentialResponse(response) {
+  state.message = null;
+  const { data, error } = await supabase.auth.signInWithIdToken({
+    provider: 'google',
+    token: response.credential,
+    nonce: window.__adminGoogleRawNonce,
+  });
+
+  if (error) {
+    state.message = { type: 'error', text: error.message || 'Sign-in failed. Please try again.' };
+    return render();
+  }
+
+  state.session = data.session;
+  await checkAdminAuth();
+}
+
+async function checkAdminAuth() {
+  try {
+    const res = await fetch(`${CONFIG.workerUrl}/admin/whoami`, { headers: await authHeaders() });
+    if (res.status === 200) {
+      const body = await res.json();
+      state.adminInfo = body;
+      state.notAuthorized = false;
+      await loadMeta();
+      return render();
+    }
+    state.notAuthorized = true;
+  } catch {
+    state.notAuthorized = true;
+  }
+  render();
+}
+
+async function loadMeta() {
+  try {
+    const res = await fetch(`${CONFIG.workerUrl}/admin/meta`, { headers: await authHeaders() });
+    state.meta = await res.json();
+  } catch {
+    state.meta = { exams: [], classEntriesByExam: {} };
+  }
+}
+
+async function loadSyllabus() {
+  state.syllabusLoaded = false;
+  render();
+  try {
+    const params = new URLSearchParams({ exam_code: state.selectedExam, class_entry: state.selectedClass });
+    const res = await fetch(`${CONFIG.workerUrl}/admin/syllabus?${params}`, { headers: await authHeaders() });
+    const body = await res.json();
+    state.syllabus = res.ok ? body.syllabus : [];
+  } catch {
+    state.syllabus = [];
+  }
+  state.syllabusLoaded = true;
+  render();
+}
+
+function validateModalForm(f) {
+  if (!f.subject.trim()) return 'Subject is required.';
+  if (!Number.isInteger(f.chapterNumber) || f.chapterNumber < 1) return 'Chapter number must be a positive integer.';
+  if (!f.chapterName.trim()) return 'Chapter name is required.';
+  if (!Number.isInteger(f.sortOrder) || f.sortOrder < 0) return 'Sort order must be a non-negative integer.';
+  return null;
+}
+
+async function saveModal() {
+  const f = state.modal.form;
+  const validationError = validateModalForm(f);
+  if (validationError) {
+    state.modal.error = validationError;
+    return render();
+  }
+
+  const payload = {
+    exam_code: state.selectedExam,
+    class_entry: state.selectedClass,
+    subject: f.subject.trim(),
+    chapter_number: f.chapterNumber,
+    chapter_name: f.chapterName.trim(),
+    sort_order: f.sortOrder,
+    topic_headings: f.topicHeadings.map((h) => h.trim()).filter(Boolean),
+    is_active: f.isActive,
+  };
+
+  state.loading = true;
+  render();
+
+  try {
+    const url = state.modal.mode === 'add'
+      ? `${CONFIG.workerUrl}/admin/syllabus`
+      : `${CONFIG.workerUrl}/admin/syllabus/${f.id}`;
+    const res = await fetch(url, {
+      method: state.modal.mode === 'add' ? 'POST' : 'PUT',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      state.loading = false;
+      state.modal.error = body.error || 'Save failed.';
+      return render();
+    }
+  } catch {
+    state.loading = false;
+    state.modal.error = 'Save failed. Check your connection.';
+    return render();
+  }
+
+  state.loading = false;
+  state.modal = null;
+  state.message = { type: 'success', text: 'Saved.' };
+  await loadSyllabus();
+}
+
+async function toggleActive(id) {
+  const row = state.syllabus.find((r) => r.id === id);
+  if (!row) return;
+  await putSyllabusRow(row, { is_active: row.is_active ? 0 : 1 });
+}
+
+async function moveRow(id, direction) {
+  const idx = state.syllabus.findIndex((r) => r.id === id);
+  const swapIdx = idx + direction;
+  if (idx === -1 || swapIdx < 0 || swapIdx >= state.syllabus.length) return;
+
+  const a = state.syllabus[idx];
+  const b = state.syllabus[swapIdx];
+
+  state.loading = true;
+  render();
+  await Promise.all([
+    putSyllabusRow(a, { sort_order: b.sort_order }, false),
+    putSyllabusRow(b, { sort_order: a.sort_order }, false),
+  ]);
+  state.loading = false;
+  await loadSyllabus();
+}
+
+async function putSyllabusRow(row, overrides, reload = true) {
+  const payload = {
+    exam_code: row.exam_code,
+    class_entry: row.class_entry,
+    subject: row.subject,
+    chapter_number: row.chapter_number,
+    chapter_name: row.chapter_name,
+    sort_order: row.sort_order,
+    topic_headings: row.topic_headings,
+    is_active: row.is_active,
+    ...overrides,
+  };
+  try {
+    await fetch(`${CONFIG.workerUrl}/admin/syllabus/${row.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    state.message = { type: 'error', text: 'Update failed. Check your connection.' };
+  }
+  if (reload) await loadSyllabus();
+}
+
+async function handleSignOut() {
+  await supabase.auth.signOut();
+  state = {
+    session: null, authChecked: true, adminInfo: null, notAuthorized: false,
+    activeTab: 'syllabus', message: null, loading: false,
+    meta: null, selectedExam: '', selectedClass: '', syllabus: [], syllabusLoaded: false, modal: null,
+  };
+  render();
+}
+
+async function init() {
+  const { data } = await supabase.auth.getSession();
+  state.session = data.session;
+  state.authChecked = true;
+
+  if (state.session) {
+    await checkAdminAuth();
+  } else {
+    render();
+  }
+
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'INITIAL_SESSION') return;
+    state.session = session;
+    if (session) {
+      checkAdminAuth();
+    } else {
+      state.adminInfo = null;
+      state.notAuthorized = false;
+      render();
+    }
+  });
+}
+
+init();
+</script>
+</body>
+</html>

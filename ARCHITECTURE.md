@@ -11,6 +11,14 @@
 
 `app.examsindia.org` (CompetitionHub) is a separate, independently authenticated product (Cloudflare Access) and is entirely out of scope for this codebase — no shared infrastructure, no shared code, no references.
 
+`admin.examsindia.org` is the operational console: a standalone
+single-file frontend (`admin/index.html`), its own Cloudflare Pages
+deployment, but the same Worker/D1/Supabase project as every exam
+subdomain. It is not scoped to one exam — it manages `syllabus`,
+`scheduled_tests`, and other operational data across every `exam_code`
+from one place. See §3 for how its requests are authorized differently
+from a student-facing subdomain's.
+
 ## 2. Request Data Flow
 
 1. Student loads `https://<exam>.examsindia.org` — a single HTML file served from that exam's Cloudflare Pages deployment.
@@ -33,6 +41,7 @@ No Cloudflare Access is involved anywhere in this flow — Supabase JWT validati
 - On success, the Worker extracts the student's email/subject claim and cross-references it against `users` and `student_enrollments` in D1 to determine role (`student` / `admin` / `superadmin`) and exam/class scope.
 - Supabase Auth is one shared identity pool across every exam subdomain — the same email/password or Google account authenticates on `aissee.examsindia.org`, a future `neet.examsindia.org`, etc. This is an identity guarantee only, not an access one: a student's requests are always scoped to their own `exam_code`/`class_entry` as recorded in `users` at registration, regardless of which subdomain's Origin the request came from. If an authenticated user's `users.exam_code` doesn't match the exam_code the Worker derived from Origin, the request is denied (or the student is shown a "not enrolled in this exam" state) rather than served — the Worker never infers a user's permissions from the subdomain they happened to log in through.
 - Adding a new exam subdomain requires only appending its origin to `ALLOWED_ORIGINS` and deploying a new Pages site — no changes to auth, D1, or the Worker's routing logic.
+- **Admin routes** (`/admin/*`) are a separate authorization path: they're only reachable from `ADMIN_ORIGIN` (`https://admin.examsindia.org`, checked in addition to the CORS allowlist), and every admin handler calls `requireAdmin()` — JWT validation via the same JWKS check, plus a live `SELECT role FROM users WHERE email = ?` requiring `admin` or `superadmin`. Because the admin console isn't tied to a single exam, admin routes never derive `exam_code` from Origin the way student-facing routes do — they take it as an explicit request parameter, validated against a live `exams` lookup instead.
 
 ## 4. Two-Pool Normalisation System
 
@@ -140,3 +149,28 @@ Adding a new exam (e.g. NEET, NCERT) requires only:
 4. A new Cloudflare Pages deployment for the subdomain's single-file frontend.
 
 No new database, no new Worker, no new Supabase project — the platform's D1, R2 bucket, Worker, and Auth project are shared and scoped entirely by `exam_code`.
+
+## 10. Admin Console
+
+`admin.examsindia.org` is a standalone Pages deployment
+(`admin/index.html`) separate from every exam's own frontend, gated by
+`users.role` (`admin`/`superadmin`) rather than by which subdomain it's
+served from. It authenticates against the same shared Supabase project
+(Google Sign-In only — see Decisions Log) and talks to the same Worker,
+using a dedicated set of `/admin/*` routes authorized as described in §3.
+
+The console is a single extensible shell (nav + auth gate) with each
+operational area as its own tab, added incrementally:
+
+- **Syllabus** (built) — CRUD over the `syllabus` table, scoped by an
+  exam + class-entry selector fed from `GET /admin/meta`. Deletion is
+  soft (`is_active`) only.
+- Exam Config, Test Composition, Student Management, Announcements,
+  Messaging — stubbed as disabled nav items, not yet built.
+
+Because every operational table (`syllabus`, `platform_config`,
+`scheduled_tests`, etc. — see CLAUDE.md §5) already carries `exam_code`
+and is read by the student-facing frontend at request time rather than
+baked into it, admin edits take effect immediately without a frontend
+deploy — the console is a management UI over data the Worker already
+serves, not a code-generation step.

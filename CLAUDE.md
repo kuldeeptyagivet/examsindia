@@ -44,6 +44,8 @@ examsindia/
 ├── ARCHITECTURE.md
 ├── aissee/
 │   └── index.html
+├── admin/
+│   └── index.html
 ├── worker/
 │   ├── worker.js
 │   └── wrangler.toml
@@ -51,7 +53,9 @@ examsindia/
 │   └── schema.sql
 └── .github/
     └── workflows/
-        └── deploy-worker.yml
+        ├── deploy-worker.yml
+        ├── deploy-pages.yml
+        └── deploy-admin.yml
 ```
 
 ---
@@ -132,14 +136,30 @@ scope every D1 query. Adding a new exam requires only an allowlist entry,
 an R2 prefix, and a new Pages deployment — no Worker, database, or auth
 changes.
 
-**Admin panel and operational config**: A superadmin-gated tab within the
-same single HTML file (role read from D1 `users.role`, same pattern as
-CompetitionHub) is the operational control room — exam configuration,
-test composition and publishing, syllabus editing, student management,
-normalisation thresholds, announcements, messaging, and (later) platform
-analytics and pricing. Anything that might change over the platform's
-lifetime and shouldn't require a code push lives in D1, not in a
-hardcoded array or constant:
+**Admin routes are the one exception to Origin-derived `exam_code`**:
+`/admin/*` paths are gated to requests from `ADMIN_ORIGIN`
+(`https://admin.examsindia.org`) specifically, and every admin endpoint
+requires `requireAdmin()` — JWT-authenticated plus a live `users.role`
+lookup for `admin`/`superadmin` — in addition to the CORS allowlist check.
+Since the admin console isn't tied to one exam, admin routes take
+`exam_code` explicitly as a request parameter (validated against a live
+`exams` lookup) rather than deriving it from Origin.
+
+**Admin panel and operational config**: A standalone console at
+`admin.examsindia.org` (separate Pages deployment, its own single-file
+frontend at `admin/index.html`) is the operational control room — exam
+configuration, test composition and publishing, syllabus editing, student
+management, normalisation thresholds, announcements, messaging, and
+(later) platform analytics and pricing, for every exam from one place.
+Role read from D1 `users.role` (`admin`/`superadmin`), same underlying
+pattern as CompetitionHub, but enforced by the Worker rather than by a
+tab gate in a student-facing file — see the Worker origin-based routing
+pattern below for how admin requests are authorized. This supersedes the
+original 2026-08-09 decision to embed the admin panel as a gated tab
+inside each exam's own HTML file; see the 2026-08-10 Decisions Log entry
+for why. Anything that might change over the platform's lifetime and
+shouldn't require a code push lives in D1, not in a hardcoded array or
+constant:
 - `syllabus` — chapter structure per exam/class; the schedule generator
   reads this table, not a hardcoded list.
 - `platform_config` — key-value store of per-exam operational parameters
@@ -318,12 +338,41 @@ credentials that do need protecting: `wrangler secret put`, read only via
   connection — deliberately kept on the same Wrangler-via-CI pattern as
   the Worker to avoid granting a new third-party permission.
 
+- Admin console live at `admin.examsindia.org` (`examsindia-admin` Pages
+  project, `.github/workflows/deploy-admin.yml`, same idempotent
+  "ensure project exists" pattern as the aissee deploy). Google
+  Sign-In only (no email/password, no sign-up flow — single-operator
+  tool; the seeded superadmin's first Google sign-in auto-provisions
+  their Supabase auth user). Gated by a new `GET /admin/whoami` Worker
+  route backed by `requireAdmin()` (JWT + live `users.role` lookup for
+  `admin`/`superadmin`) — a signed-in non-admin account sees "not
+  authorized" instead of the console shell. Shell has a left-nav with
+  "Syllabus" functional and Exam Config / Test Composition / Student
+  Management / Announcements / Messaging stubbed as disabled
+  "coming soon" items, so later parts extend the same shell instead of
+  rebuilding it.
+- Syllabus tab fully working: exam + class-entry selectors (from a new
+  `GET /admin/meta` route), a table of chapters ordered by `sort_order`
+  with Up/Down reorder (swaps `sort_order` between adjacent rows via two
+  `PUT` calls), Edit, and Activate/Deactivate (soft-delete only — hard
+  delete isn't safe once `scheduled_tests.chapter_id` starts referencing
+  `syllabus` rows). Add/Edit uses a modal form with a repeatable
+  topic-heading list. Backed by new Worker routes
+  `GET/POST /admin/syllabus` and `PUT /admin/syllabus/:id`, all
+  admin-gated and validated (`validateSyllabusInput`) the same way
+  `/enrollment` is validated.
+- `users` table seeded with the first superadmin
+  (`drtyagivet@gmail.com`) directly in `schema/schema.sql`, applied to
+  live D1 via the dashboard console.
+
 **Not yet built:**
-- Everything else (R2 question bank content, `syllabus`/`scheduled_tests`
-  content and the schedule-generation algorithm itself, admin panel,
-  CBT attempt screen, normalisation cron, scheduled D1-to-R2 backup
-  export cron route, ability to change exam/class after enrollment —
-  by design requires admin intervention per the existing decision)
+- R2 question bank content, `scheduled_tests` content and the
+  schedule-generation algorithm itself, remaining admin console tabs
+  (Exam Config, Test Composition, Student Management, Announcements,
+  Messaging), CBT attempt screen, normalisation cron, scheduled
+  D1-to-R2 backup export cron route, ability to change exam/class after
+  enrollment (by design requires admin intervention per the existing
+  decision — now actionable once Student Management ships)
 
 ---
 
@@ -528,6 +577,34 @@ credentials that do need protecting: `wrangler secret put`, read only via
   verification via a DLT-registered gateway (e.g. MSG91) is a future
   paid-tier item, same deferral pattern as Razorpay. See
   ARCHITECTURE.md §5.
+2026-08-10 — Admin panel moved from a gated tab inside each exam's own
+  HTML file to a standalone console at `admin.examsindia.org`, a separate
+  Pages deployment. Supersedes the 2026-08-09 same-file decision. Chosen
+  because the Worker/D1/R2 layer is already shared across every exam by
+  `exam_code` — a root-level console that can manage any exam from one
+  place is a natural fit, and it keeps operator-only code out of the
+  student-facing `aissee/index.html` (and every future exam's file)
+  entirely rather than growing each one with an admin tab. Root domain
+  `examsindia.org` itself was deliberately left free rather than used
+  for the console, in case it's needed later for a public multi-exam
+  landing page.
+2026-08-10 — Admin console auth is Google Sign-In only, no email/password
+  and no self-serve sign-up. It's a single-operator tool for now, so the
+  email/password sign-up + email-confirmation flow the student app needs
+  isn't worth the extra code; Google Sign-In auto-provisions a Supabase
+  auth user on first sign-in, and since that email matches a seeded
+  `users` row it's immediately recognized as admin/superadmin with no
+  separate account-creation step.
+2026-08-10 — First superadmin seeded directly in `schema/schema.sql`
+  (`drtyagivet@gmail.com`) rather than bootstrapped through the app,
+  since nothing could grant that role before any admin tooling existed.
+  Applied to live D1 via the dashboard console, same pattern as the
+  `mobile_number`/`city`/`state` migration.
+2026-08-10 — Syllabus deletion from the admin console is soft-delete only
+  (`is_active` toggle), no hard delete. `scheduled_tests.chapter_id` will
+  reference `syllabus` rows once test composition ships, so removing a
+  row outright risks orphaning references that don't exist yet but will
+  soon.
 2026-08-10 — Built and verified the one-time setup screen end-to-end:
   Worker's first real D1 reads/writes (`GET`/`POST /enrollment`), the
   frontend form, and a live D1 database check (via the dashboard

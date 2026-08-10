@@ -116,3 +116,48 @@ visitor had no way to switch language without scrolling past the whole
 page first. Moved it to a sticky top bar spanning the full page and
 rewired it to fire once in init() instead of attachHandlers(), since it
 no longer gets torn down and rebuilt on every render().
+
+Started the admin console: `syllabus` and `scheduled_tests` are still
+empty in D1, blocking schedule generation, test composition, and the
+CBT screen, so syllabus editing was the highest-leverage first admin
+piece. Reworked the plan mid-design: rather than the originally-decided
+gated tab inside `aissee/index.html`, built a standalone console at
+`admin.examsindia.org` (new `admin/index.html`, new Pages deployment,
+new `deploy-admin.yml` workflow mirroring the existing pattern) since
+the Worker/D1 layer is already shared across exams by `exam_code` — a
+root-level console naturally manages every exam from one place instead
+of growing each exam's own file with operator-only code.
+
+Worker gained an admin authorization path distinct from the
+Origin-derived `exam_code` model every other route uses: `/admin/*`
+requires the request to originate from `ADMIN_ORIGIN` specifically, and
+`requireAdmin()` checks the JWT plus a live `users.role` lookup for
+`admin`/`superadmin`. Admin routes take `exam_code` as an explicit,
+validated parameter instead, since the console isn't tied to one exam.
+New routes: `GET /admin/whoami` (auth gate for the console shell),
+`GET /admin/meta` (exams + class entries for the selector), and full
+CRUD on `syllabus` (`GET`/`POST /admin/syllabus`,
+`PUT /admin/syllabus/:id`) — validated the same way `/enrollment`
+already is. Delete is soft (`is_active` toggle) only, since
+`scheduled_tests.chapter_id` will reference these rows once test
+composition exists.
+
+Admin console auth is Google Sign-In only — no email/password, no
+sign-up flow. It's a single-operator tool, so skipped the
+confirmation-email complexity the student app needs; Google Sign-In
+auto-provisions a Supabase auth user on first sign-in, and a seeded
+`users` row (`drtyagivet@gmail.com`, role `superadmin`, added directly
+to `schema/schema.sql` and applied to live D1 via the dashboard console)
+means that first sign-in is immediately recognized as superadmin with
+no separate bootstrap step.
+
+Built the console shell: sign-in screen, a left-nav with "Syllabus"
+functional and Exam Config / Test Composition / Student Management /
+Announcements / Messaging stubbed as disabled "coming soon" entries so
+later parts extend this shell instead of rebuilding it. Syllabus tab:
+exam + class-entry selectors, a chapter table with Up/Down reorder
+(swaps `sort_order` between adjacent rows via two `PUT` calls), Edit,
+and Activate/Deactivate, plus a modal Add/Edit form with a repeatable
+topic-heading list. Not yet verified live — needs the manual Google
+Cloud (authorized JavaScript origin) and Cloudflare Pages (custom
+domain) steps before it can be signed into at the real subdomain.

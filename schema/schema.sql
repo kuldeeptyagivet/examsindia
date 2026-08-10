@@ -205,6 +205,11 @@ INSERT INTO platform_config (exam_code, config_key, config_value) VALUES
   ('aissee', 'medium_weight', '1.25'),
   ('aissee', 'hard_weight', '1.5');
 
+-- Bootstrap the first superadmin for the admin console (admin.examsindia.org).
+-- exam_code/class_entry stay NULL: an admin isn't scoped to one exam.
+INSERT INTO users (email, role) VALUES
+  ('drtyagivet@gmail.com', 'superadmin');
+
 -- ============================================================
 -- Indexes
 -- ============================================================
