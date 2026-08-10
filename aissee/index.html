@@ -88,6 +88,20 @@
     font-size: 15px;
     padding: 0 10px;
   }
+  #top-bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--paper);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+  }
+  #top-bar-inner {
+    max-width: 420px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: flex-end;
+  }
   main { flex: 1; padding: 24px 20px 40px; }
   .tabs {
     display: flex;
@@ -302,6 +316,14 @@
 </style>
 </head>
 <body>
+<div id="top-bar">
+  <div id="top-bar-inner">
+    <select id="lang-select">
+      <option value="hi" selected>हिंदी</option>
+      <option value="en">English</option>
+    </select>
+  </div>
+</div>
 <div id="landing-hi" class="landing" lang="hi">
   <div class="landing-hero">
     <div class="landing-badges">
@@ -600,10 +622,6 @@ function renderHeader() {
         <h1>${t('app_title')}</h1>
         <p>${t('tagline')}</p>
       </div>
-      <select id="lang-select">
-        <option value="hi" ${state.lang === 'hi' ? 'selected' : ''}>हिंदी</option>
-        <option value="en" ${state.lang === 'en' ? 'selected' : ''}>English</option>
-      </select>
     </header>
   `;
 }
@@ -736,8 +754,6 @@ function render() {
 }
 
 function attachHandlers() {
-  document.getElementById('lang-select')?.addEventListener('change', (e) => setLang(e.target.value));
-
   document.querySelectorAll('.tab-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.activeTab = btn.dataset.tab;
@@ -991,6 +1007,7 @@ async function init() {
 
   document.getElementById('hero-cta')?.addEventListener('click', scrollToApp);
   document.getElementById('hero-cta-en')?.addEventListener('click', scrollToApp);
+  document.getElementById('lang-select')?.addEventListener('change', (e) => setLang(e.target.value));
 
   const { data } = await supabase.auth.getSession();
   state.session = data.session;
