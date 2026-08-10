@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link id="font-latin" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap">
+<script src="https://accounts.google.com/gsi/client" defer></script>
 <style>
   :root {
     --ink: #14213d;
@@ -125,11 +126,6 @@
   }
   .btn-primary { background: var(--ink); color: var(--paper); }
   .btn-primary:disabled { background: var(--muted); cursor: not-allowed; }
-  .btn-google {
-    background: var(--paper);
-    color: var(--ink);
-    border: 1px solid var(--border);
-  }
   .btn-secondary {
     background: var(--paper);
     color: var(--ink);
@@ -149,6 +145,7 @@
     height: 1px;
     background: var(--border);
   }
+  #google-btn-container { min-height: 44px; }
   .msg {
     font-size: 14px;
     padding: 10px 12px;
@@ -189,6 +186,7 @@ const CONFIG = {
   supabaseAnonKey: 'sb_publishable_Rv2ZG9LMWw9p-YrwwFuuUQ_ecmCLTGW',
   workerUrl: 'https://examsindia-worker.kuldeeptyagi-vet.workers.dev',
   examCode: 'aissee',
+  googleClientId: '637390801046-2da7gnoosbdsp6en96flvqjd2j3asmtk.apps.googleusercontent.com',
 };
 
 const supabase = createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
@@ -203,7 +201,6 @@ const LANG = {
     password_label: 'Password',
     signup_button: 'Create Account',
     signin_button: 'Sign In',
-    google_button: 'Continue with Google',
     or_divider: 'or',
     signout_button: 'Sign Out',
     welcome_message: 'Signed in as',
@@ -223,7 +220,6 @@ const LANG = {
     password_label: 'पासवर्ड',
     signup_button: 'खाता बनाएं',
     signin_button: 'साइन इन करें',
-    google_button: 'Google से जारी रखें',
     or_divider: 'या',
     signout_button: 'साइन आउट करें',
     welcome_message: 'इस रूप में साइन इन किया गया',
@@ -319,7 +315,7 @@ function renderAuthForm() {
       </button>
     </form>
     <div class="divider">${t('or_divider')}</div>
-    <button id="google-btn" class="btn btn-google" ${state.loading ? 'disabled' : ''}>${t('google_button')}</button>
+    <div id="google-btn-container"></div>
   `;
 }
 
@@ -362,9 +358,9 @@ function attachHandlers() {
   });
 
   document.getElementById('auth-form')?.addEventListener('submit', handleAuthSubmit);
-  document.getElementById('google-btn')?.addEventListener('click', handleGoogleSignIn);
   document.getElementById('signout-btn')?.addEventListener('click', handleSignOut);
   document.getElementById('whoami-btn')?.addEventListener('click', handleWhoami);
+  renderGoogleButton();
 }
 
 async function handleAuthSubmit(e) {
@@ -406,18 +402,61 @@ async function handleAuthSubmit(e) {
   render();
 }
 
-async function handleGoogleSignIn() {
-  state.loading = true;
-  render();
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.origin },
+let googleRawNonce = null;
+
+async function generateNonce() {
+  const rawNonce = crypto.randomUUID() + crypto.randomUUID();
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawNonce));
+  const hashedNonce = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return { rawNonce, hashedNonce };
+}
+
+async function renderGoogleButton() {
+  const container = document.getElementById('google-btn-container');
+  if (!container || !window.google?.accounts?.id) return;
+
+  const { rawNonce, hashedNonce } = await generateNonce();
+  googleRawNonce = rawNonce;
+
+  google.accounts.id.initialize({
+    client_id: CONFIG.googleClientId,
+    callback: handleGoogleCredentialResponse,
+    nonce: hashedNonce,
+    use_fedcm_for_prompt: true,
   });
+
+  container.innerHTML = '';
+  google.accounts.id.renderButton(container, {
+    theme: 'outline',
+    size: 'large',
+    width: Math.min(400, Math.floor(container.clientWidth) || 300),
+    text: 'continue_with',
+    locale: state.lang === 'hi' ? 'hi' : 'en',
+  });
+}
+
+async function handleGoogleCredentialResponse(response) {
+  state.loading = true;
+  state.message = null;
+  render();
+
+  const { data, error } = await supabase.auth.signInWithIdToken({
+    provider: 'google',
+    token: response.credential,
+    nonce: googleRawNonce,
+  });
+
+  state.loading = false;
+
   if (error) {
-    state.loading = false;
     state.message = { type: 'error', text: error.message || t('error_generic') };
-    render();
+    return render();
   }
+
+  state.session = data.session;
+  render();
 }
 
 async function handleSignOut() {
