@@ -79,3 +79,23 @@ in via Google, then Verify Worker Auth returned HTTP 200 with the
 correct email, Supabase user id, and exam_code. This was the last
 unverified piece of the Worker/auth foundation built earlier in the
 day.
+
+Decided mobile/city/state profile fields fold into a single one-time
+"complete your setup" screen alongside exam/class/target-date
+registration, rather than a separate profile step. Real SMS OTP
+verification deferred (TRAI DLT registration required for any business
+SMS sender in India regardless of provider/method — not just a cost
+problem). State is a hardcoded India states/UTs dropdown; city is free
+text.
+
+Built and deployed the setup screen: schema gains mobile_number/city/
+state on student_enrollments (ALTER TABLE against live D1); Worker
+gains its first real D1 endpoints, GET and POST /enrollment; frontend
+shows the setup form after sign-in until enrolled, then an enrollment
+summary. Verified fully end-to-end with the same real test account:
+submitted the form, confirmed both student_enrollments and users rows
+in D1 directly via the dashboard console (not just the app's own
+report), and confirmed reload correctly skips back to the account view
+instead of re-showing the setup form. Schedule-row generation not
+included - no syllabus/scheduled_tests content exists yet to schedule
+against.

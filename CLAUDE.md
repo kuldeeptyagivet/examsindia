@@ -215,9 +215,20 @@ credentials that do need protecting: `wrangler secret put`, read only via
   Supabase JWTs against the public JWKS (ES256) using native Web Crypto
   only, no dependencies; enforces the `ALLOWED_ORIGINS` CORS allowlist;
   derives `exam_code` from Origin; `/whoami` test route exercises the
-  auth path. Verified via curl for all negative paths, and now via a
-  real signed-in user for the success path too (see below). No D1/R2
-  reads/writes yet.
+  auth path. Verified via curl for all negative paths, and via a real
+  signed-in user for the success path too.
+- Worker's first real D1 endpoints: `GET /enrollment` (checks whether
+  the authenticated student has completed setup) and
+  `POST /enrollment` (validates and writes it — class_entry per exam,
+  future target_date, 10-digit Indian mobile format only/no OTP, city,
+  state against a hardcoded India states/UTs list; upserts `users`
+  alongside the `student_enrollments` insert via `env.DB.batch()`;
+  rejects re-enrollment with 409 once a record exists). Verified
+  end-to-end by a real user: submitted the setup form, confirmed both
+  `student_enrollments` and `users` rows landed correctly in D1 via the
+  dashboard console, and confirmed the row persists correctly across a
+  page reload (enrollment check on load skips straight to the account
+  view instead of re-showing the setup form).
 - `aissee/index.html` page shell built: header with brand + language
   selector, `t()`/`LANG` translation system (en/hi, default hi), Sign
   In/Sign Up tabs, Supabase Auth wiring (email+password, Google
@@ -255,6 +266,19 @@ credentials that do need protecting: `wrangler secret put`, read only via
   correct response. Client secret is regenerate-only after creation
   (Google never shows it twice); exactly one active secret exists after
   cleanup.
+- One-time "complete your setup" screen live: shown after first
+  sign-in if the student hasn't enrolled yet (checked via
+  `GET /enrollment`), collecting class entry (toggle buttons, matching
+  the tab-button pattern), target completion date (native date input,
+  shows an inline non-blocking warning if under `MIN_SCHEDULE_DAYS`
+  from today), mobile number, city (free text), and state (hardcoded
+  dropdown, 28 states + 8 UTs, duplicated client-side from the Worker's
+  list). Field values sync into `state.setupForm` on every input so a
+  full-teardown re-render (needed to show/hide the date warning) never
+  loses already-typed values. On success, the account view shows an
+  enrollment summary instead of the setup form. Schedule-row generation
+  (`student_schedules`) is intentionally not wired up yet — no
+  `syllabus`/`scheduled_tests` content exists in D1 to schedule against.
 - `aissee.examsindia.org` live via Cloudflare Pages: project
   `examsindia-aissee` deploys automatically via GitHub Actions +
   Wrangler (`.github/workflows/deploy-pages.yml`, triggers on any push
@@ -271,10 +295,11 @@ credentials that do need protecting: `wrangler secret put`, read only via
   the Worker to avoid granting a new third-party permission.
 
 **Not yet built:**
-- Everything else (D1/R2 reads and writes in the Worker, R2 question
-  bank content, enrollment/schedule flow, admin panel, CBT attempt
-  screen, scheduling engine, normalisation cron, scheduled D1-to-R2
-  backup export cron route)
+- Everything else (R2 question bank content, `syllabus`/`scheduled_tests`
+  content and the schedule-generation algorithm itself, admin panel,
+  CBT attempt screen, normalisation cron, scheduled D1-to-R2 backup
+  export cron route, ability to change exam/class after enrollment —
+  by design requires admin intervention per the existing decision)
 
 ---
 
@@ -479,6 +504,18 @@ credentials that do need protecting: `wrangler secret put`, read only via
   verification via a DLT-registered gateway (e.g. MSG91) is a future
   paid-tier item, same deferral pattern as Razorpay. See
   ARCHITECTURE.md §5.
+2026-08-10 — Built and verified the one-time setup screen end-to-end:
+  Worker's first real D1 reads/writes (`GET`/`POST /enrollment`), the
+  frontend form, and a live D1 database check (via the dashboard
+  console, not just the app's own report) confirming both
+  `student_enrollments` and `users` rows were written correctly by a
+  real signed-in user. `users` upsert uses `ON CONFLICT DO UPDATE` on
+  `exam_code`/`class_entry` only, not `role` — safe because the
+  enrollment-existence check already gates this code path to
+  first-time student setup only, so it won't clobber an admin/
+  superadmin row's role. Schedule-row generation deliberately excluded
+  from this piece — `syllabus` and `scheduled_tests` are both empty in
+  D1, so there's nothing yet to generate a schedule against.
 
 ---
 
