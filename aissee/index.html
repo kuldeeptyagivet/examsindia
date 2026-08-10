@@ -495,7 +495,8 @@ async function init() {
   state.session = data.session;
   render();
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'INITIAL_SESSION') return;
     state.session = session;
     render();
   });
