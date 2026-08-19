@@ -8,6 +8,7 @@ const ALLOWED_ORIGINS = [
 ];
 
 const SUPABASE_PROJECT_URL = 'https://knkmcpbyrgrbgpriztnj.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_Rv2ZG9LMWw9p-YrwwFuuUQ_ecmCLTGW';
 const JWKS_URL = `${SUPABASE_PROJECT_URL}/auth/v1/.well-known/jwks.json`;
 const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
 
@@ -504,6 +505,17 @@ async function handlePostSyllabusImport(request, env) {
   return { status: 200, body: { imported: statements.length, syllabus: results.map(rowToSyllabusResponse) } };
 }
 
+async function pingSupabase() {
+  try {
+    const res = await fetch(`${SUPABASE_PROJECT_URL}/auth/v1/health`, {
+      headers: { apikey: SUPABASE_ANON_KEY },
+    });
+    console.log(`Supabase keep-alive ping: ${res.status}`);
+  } catch (err) {
+    console.error('Supabase keep-alive ping failed', err);
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
@@ -586,5 +598,9 @@ export default {
       JSON.stringify({ ok: true, exam_code: examCode }),
       { status: 200, headers }
     );
+  },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(pingSupabase());
   },
 };
