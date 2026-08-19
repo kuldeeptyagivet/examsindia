@@ -391,6 +391,20 @@ credentials that do need protecting: `wrangler secret put`, read only via
 - AISSEE Class 6 syllabus populated: all 66 chapters across Mathematics
   (17), Intelligence (13), English (19), General Knowledge (4), and
   General Science (13), imported from the question bank via the above.
+- Cloudflare Worker Cron Trigger added (`worker/wrangler.toml`
+  `[triggers]`, daily at 03:00 UTC): a `scheduled()` handler on the same
+  Worker pings Supabase's Auth health endpoint (`/auth/v1/health`) with
+  the existing public anon key, to prevent the Supabase free-tier
+  project from auto-pausing after 7 days with no API traffic. This is
+  the first Cron Trigger actually wired up on `examsindia-worker` — the
+  still-not-yet-built daily D1→R2 backup export and normalisation cron
+  (see below) will reuse the same `scheduled()` entry point rather than
+  each needing its own trigger. Deployed via the existing
+  `deploy-worker.yml` pipeline (already triggers on any push to
+  `worker/worker.js` or `worker/wrangler.toml`), verified live via a
+  successful GitHub Actions run. Does not retroactively fix a project
+  that's already paused — unpausing is a one-time manual action from
+  the Supabase dashboard; the cron only prevents future pauses.
 
 **Not yet built:**
 - R2 question bank content (Class 6 syllabus metadata now exists in D1,
@@ -672,6 +686,22 @@ credentials that do need protecting: `wrangler secret put`, read only via
   Table was empty in live D1 at the time, so the migration couldn't
   fail on a pre-existing duplicate — confirmed via `SELECT COUNT(*)`
   before applying it.
+2026-08-19 — Supabase free-tier project auto-paused after 7 days of
+  inactivity (notice email from Supabase). Chose a Cloudflare Worker
+  Cron Trigger over a GitHub Actions scheduled workflow or an external
+  cron-ping service (cron-job.org etc.) to keep the project active,
+  since it needs no new secrets or third-party accounts and reuses the
+  exact Cron Trigger mechanism already documented above for the
+  not-yet-built backup/normalisation crons — one `scheduled()` entry
+  point future jobs can share rather than each getting its own trigger.
+  Runs daily rather than every-3-days, both because daily is trivially
+  inside the 7-day pause window and to match the cadence the future
+  backup export cron will use. Pings `/auth/v1/health` with the anon
+  key rather than a D1 query, since Supabase is Auth-only in this
+  architecture — D1 holds all application data and was never at risk of
+  pausing. Fixing the already-paused project itself required one manual
+  unpause from the Supabase dashboard; the cron only prevents
+  recurrence.
 
 ---
 
